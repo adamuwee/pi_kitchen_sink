@@ -39,11 +39,15 @@ class ADS7828:
         self._i2c_addr = i2c_addr
         self._error_counter = 0
         self._sample_counter = 0
-        self._channel_calibration = channel_calibration.ChannelCalibration(init_channel_count=8)
+        self._channel_0to5V_calibration = channel_calibration.ChannelCalibration("ads7828_channel_voltage_calibration.json",
+                                                                           init_channel_count=8)
+        self._channel_4to20ma_calibration = channel_calibration.ChannelCalibration("ads7828_channel_4to20ma_calibration.json",
+                                                                           init_channel_count=8)
         pass
-
+            
     '''Return voltage for a given channel''' 
-    def get_voltage_from_channel(self, channel_index, scale=2.5) -> float:
+    def get_voltage_from_channel(self, channel_index, apply_calibration=True) -> float:
+        scale=2.5
         channel_reg_index = self._ch_index_to_reg_index(channel_index)
         command_byte = (self.adc_input_type << 7) + (channel_reg_index << 4 ) + (self.adc_power_config << 2) 
         adc_voltage = float('NaN')
@@ -55,8 +59,9 @@ class ADS7828:
             # Raw / Uncalibrated Voltage
             adc_voltage = (raw_adc_bits / self.full_scale_12bits) * scale
             # Apply Channel Calibration
-            ch_cal = self._channel_calibration.get_scale_offset(channel_index)
-            adc_voltage = adc_voltage * ch_cal.scale + ch_cal.offset
+            if apply_calibration:
+                ch_cal = self._channel_0to5V_calibration.get_scale_offset(channel_index)
+                adc_voltage = adc_voltage * ch_cal.scale + ch_cal.offset
             self._sample_counter += 1
         except Exception as e:
             print(e)
@@ -64,14 +69,43 @@ class ADS7828:
         finally:
             return adc_voltage
 
+    '''Return voltage for a given channel''' 
+    def get_4to20ma_from_channel(self, channel_index) -> float:
+        scale=2.5
+        channel_reg_index = self._ch_index_to_reg_index(channel_index)
+        command_byte = (self.adc_input_type << 7) + (channel_reg_index << 4 ) + (self.adc_power_config << 2) 
+        adc_voltage = float('NaN')
+        try:
+            self.bus.write_byte(self._i2c_addr, command_byte)
+            data = self.bus.read_i2c_block_data(self._i2c_addr, command_byte, 2)
+            raw_adc_bits = (data[0] & 0x0F) * 256 + data[1]
+            print(f"ch_idx:{channel_reg_index}\tcmd_byte:{command_byte:08b}\tdata:{raw_adc_bits:04x}")
+            # Raw / Uncalibrated Voltage
+            adc_voltage = (raw_adc_bits / self.full_scale_12bits) * scale
+            # Apply Channel Calibration
+            ch_cal = self._channel_4to20ma_calibration.get_scale_offset(channel_index)
+            adc_voltage = adc_voltage * ch_cal.scale + ch_cal.offset
+            self._sample_counter += 1
+        except Exception as e:
+            print(e)
+            self._error_counter += 1
+        finally:
+            return adc_voltage
     
     '''Read 8 channels and return list of voltages''' 
-    def get_voltages_from_device(self) -> list:
+    def get_voltages_from_device(self, apply_calibration=True) -> list:
         voltages = list()
         for channel_index in range(8):
-            voltages.append(self.get_voltage_from_channel(channel_index))
+            voltages.append(self.get_voltage_from_channel(channel_index, apply_calibration))
         return voltages
 
+    '''Read 8 channels and return list of voltages''' 
+    def get_currents_from_device(self) -> list:
+        currents = list()
+        for channel_index in range(8):
+            currents.append(self.get_4to20ma_from_channel(channel_index))
+        return currents
+    
     '''Print a static table of data to the console'''
     def print_data_table(self, data_dict):
         
@@ -117,7 +151,8 @@ if __name__ == '__main__':
     while True:
         now = datetime.datetime.now()
         print(f"Time: {now}")
-        adc_raw_data = ads7828.get_voltages_from_device()
+        #adc_raw_data = ads7828.get_voltages_from_device(apply_calibration=False)
+        adc_raw_data = ads7828.get_currents_from_device()
         data_dict = dict()
         channel_index = 0
         

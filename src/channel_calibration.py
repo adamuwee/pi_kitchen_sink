@@ -23,7 +23,7 @@ class ChannelCalibration:
     _calibration_dict = None
     _json_file_name = None
 
-    def __init__(self, config_file_name="default_channel_config.json", init_channel_count=8) -> None:
+    def __init__(self, config_file_name, init_channel_count=8) -> None:
         self._calibration_dict = dict()
         self._json_file_name = config_file_name
         if exists(self._json_file_name):
