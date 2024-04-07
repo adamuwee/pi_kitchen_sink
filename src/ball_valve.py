@@ -1,5 +1,6 @@
 import mcp23017
 import datetime
+import time
 
 '''Measures the time remaining in a state transition and indicates if the transition has timed out'''
 class TimeoutTimer:
@@ -26,7 +27,7 @@ class TransitionResponse:
 
 '''Returned to the caller to indicate the state of the valve including the time remaining of a transition state'''
 class ValveState:
-    def __init(self, state : int, transition_time_remaining : int):
+    def __init__(self, state : int, transition_time_remaining : int):
         self.state = state
         self.transition_time_remaining = transition_time_remaining
 
@@ -63,26 +64,25 @@ class BallValve:
     '''Initialize Ball Valve Object - fast init'''
     def __init__(self, 
                  mcp_io : mcp23017.MCP23017,
-                 direction_pin, 
-                 enable_pin, 
-                 open_pin, 
-                 close_pin, 
+                 din_open_pin, 
+                 din_close_pin,
+                 dout_direction_pin, 
+                 dout_enable_pin, 
                  transition_timeout_secs=10,
                  state_change_callback=None):
         
         # Init vars
         self._mcp_io = mcp_io
-        self._direction_pin = direction_pin
-        self._enable_pin = enable_pin
-        self._open_pin = open_pin
-        self._close_pin = close_pin
-        self._transition_timeout_secsclose_pin = close_pin
-        self._transition_timeout_secs = transition_timeout_secs
-        self._transition_request = self.TRANSITION_NONE
-        self._state_change_callback = state_change_callback
-        self._timer = None
         
-        # Set init state for valve
+        self._open_pin = din_open_pin
+        self._close_pin = din_close_pin
+        self._direction_pin = dout_direction_pin
+        self._enable_pin = dout_enable_pin
+
+        self._transition_timeout_secs = transition_timeout_secs
+        self._state_change_callback = state_change_callback
+        
+        self._transition_request = self.TRANSITION_NONE
         self._state = self.STATE_INIT
     
     '''Public API: Request to OPEN the Ball Valve'''
@@ -110,7 +110,7 @@ class BallValve:
         if self._timer != None:
             time_remaining = self._timer.time_remaining_seconds()  
         return ValveState(current_state, time_remaining)
-         
+             
     '''Public API: This should be called in a loop to process the ball valve state and transition timeouts'''
     def process(self):
         # Big ol' State Machine
@@ -138,17 +138,18 @@ class BallValve:
         
         # STATE_OPENING
         elif self._state == self.STATE_OPENING:
-            valve_position = self._get_valve_position()
+            valve_position = self.get_valve_position()
             if valve_position == self.VALVE_POSITION_OPEN:
-                self._change_state(self.STATE_OPEN)                
+                self._change_state(self.STATE_OPEN, f"Valve Opened - moving to OPEN state.")                
             elif self._timer.has_timed_out():
-                self._set_drive_state(self.STATE_INIT, f"Valve Opening Timeout. Returning to INIT state.")
+                self._set_drive_state(self.STATE_INIT)
+                self._change_state(self.STATE_INIT, f"Valve Opening Timeout. Returning to INIT state.")    
             pass
             
         # STATE_OPEN
         elif self._state == self.STATE_OPEN:
             self._set_drive_state(self.STATE_IDLE)
-            self._change_state(self.STATE_IDLE, "Valve Open. Returning to IDLE state")
+            self._change_state(self.STATE_IDLE, "Valve Open. Returning to IDLE state.")
             pass
         
         # STATE_START_CLOSING
@@ -160,11 +161,12 @@ class BallValve:
         
         # STATE_CLOSING
         elif self._state == self.STATE_CLOSING:
-            valve_position = self._get_valve_position()
+            valve_position = self.get_valve_position()
             if valve_position == self.VALVE_POSITION_CLOSE:
-                self._change_state(self.STATE_CLOSED)  
+                self._change_state(self.STATE_CLOSED, f"Valve Closed. Returning to IDLE state.")  
             elif self._timer.has_timed_out():
-                self._set_drive_state(self.STATE_INIT, f"Valve Closing Timeout. Returning to INIT state.")
+                self._set_drive_state(self.STATE_INIT)
+                self._change_state(self.STATE_INIT, f"Valve Closiing Timeout. Returning to INIT state.")  
             pass
         
         # STATE_CLOSED    
@@ -185,7 +187,7 @@ class BallValve:
             
     '''Read the state of the open input pin and return True if the ball valve is open, False otherwise'''
     '''VALVE_POSITION_UNKNOWN, VALVE_POSITION_OPEN, or VALVE_POSITION_CLOSE'''
-    def _get_valve_position(self) -> int:
+    def get_valve_position(self) -> int:
         valve_position = self.VALVE_POSITION_UNKNOWN
         open_pin_state = self._mcp_io.read_kitchensink_dinput(self._open_pin)
         close_pin_state = self._mcp_io.read_kitchensink_dinput(self._close_pin)
@@ -215,3 +217,48 @@ class BallValve:
     def _emit_state_change_event(self, new_state:int, err_message : str):
         if self._state_change_callback != None:
             self._state_change_callback(self._state, new_state, err_message) 
+            
+
+def _state_change_callback(self, new_state:int, context:str):
+    print(f"State Change: [{new_state}]\tContext: {context}")
+            
+'''Component Test'''
+if __name__ == '__main__':
+    
+    # Test Objects
+    mcp = mcp23017.MCP23017(0x21)
+    ball_valve = BallValve(mcp, 0, 1, 8, 9, state_change_callback=_state_change_callback)
+    
+    # Test List
+    test_read_valve_state = False
+    test_toggle_open_close_state = True
+    
+    # Read and print the position of the valve
+    if test_read_valve_state:
+        test_duration_seconds = 60
+        start_time = datetime.datetime.now()
+        elapsed_time = (datetime.datetime.now() - start_time).total_seconds()
+        while elapsed_time < test_duration_seconds:
+            valve_position = ball_valve.get_valve_position()
+            print(f"Valve State: 0b{valve_position:02b}\tTiming: {elapsed_time:.0f} of {test_duration_seconds}s")
+            time.sleep(1.0)
+            elapsed_time = (datetime.datetime.now() - start_time).total_seconds()
+    
+    # Toggle the valve position
+    if test_toggle_open_close_state:
+        
+        # Open Valve
+        test_timeout_seconds = 20
+        start_time = datetime.datetime.now()
+        elapsed_time = (datetime.datetime.now() - start_time).total_seconds()
+        print("Opening valve...")
+        ball_valve.process()
+        ball_valve.request_open()
+        valve_position = ball_valve.VALVE_POSITION_UNKNOWN
+        while elapsed_time < test_timeout_seconds and valve_position is not ball_valve.VALVE_POSITION_OPEN:
+            ball_valve.process()
+            valve_position = ball_valve.get_valve_position()
+            print(f"Valve State: 0b{valve_position:02b}\tTiming: {elapsed_time:.0f} of {test_timeout_seconds}s")
+            time.sleep(1.0)
+            elapsed_time = (datetime.datetime.now() - start_time).total_seconds()
+        
