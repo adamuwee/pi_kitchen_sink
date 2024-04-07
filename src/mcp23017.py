@@ -51,7 +51,7 @@ class MCP23017:
         
         # Enable sequential mode - increments its address counter after each byte during the data transfer.
         self.bus.write_byte_data(self.address, MCP23x17_IOCON, IOCON_SEQOP) 
-        
+        # Initialize port directions
         self.bus.write_byte_data(self.address, IODIRA, 0xFF)  # Set all pins on port A as inputs
         self.bus.write_byte_data(self.address, IODIRB, 0x00)  # Set all pins on port B as outputs
 
@@ -108,7 +108,7 @@ if __name__ == '__main__':
     mcp = MCP23017(0x21)
     
     # Test List
-    test_toggle_port_ab = False
+    test_toggle_port_ab = True
     test_repeat_port_a_read = True
     
     # Toggle Outputs on the MCP23017
