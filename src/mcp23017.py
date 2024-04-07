@@ -2,6 +2,9 @@ import smbus
 import time
 import datetime
 
+# Datasheet
+# https://ww1.microchip.com/downloads/en/devicedoc/20001952c.pdf
+
 # Define MCP23017 registers
 IODIRA = 0x00  # I/O direction register for port A
 IODIRB = 0x01  # I/O direction register for port B
