@@ -48,14 +48,21 @@ class BallValve:
     TRANSITION_OPEN = 1
     TRANSITION_CLOSE = 2
     
+    # Private Constants - Valve Position
+    VALVE_POSITION_UNKNOWN = 0
+    VALVE_POSITION_OPEN = 1
+    VALVE_POSITION_CLOSE = 2
+    
     # Private Members
     _state = STATE_INIT
     _transition_request = TRANSITION_NONE
     _state_change_callback = None
     _timer = None
+    _mcp_io = None
     
     '''Initialize Ball Valve Object - fast init'''
     def __init__(self, 
+                 mcp_io : mcp23017.MCP23017,
                  direction_pin, 
                  enable_pin, 
                  open_pin, 
@@ -64,9 +71,11 @@ class BallValve:
                  state_change_callback=None):
         
         # Init vars
+        self._mcp_io = mcp_io
         self._direction_pin = direction_pin
         self._enable_pin = enable_pin
         self._open_pin = open_pin
+        self._close_pin = close_pin
         self._transition_timeout_secsclose_pin = close_pin
         self._transition_timeout_secs = transition_timeout_secs
         self._transition_request = self.TRANSITION_NONE
@@ -104,104 +113,105 @@ class BallValve:
          
     '''Public API: This should be called in a loop to process the ball valve state and transition timeouts'''
     def process(self):
-        # Check if the ball valve is transitioning and if the transition has timed out
-        # Code to check the transition state and timeout goes here
-        
         # Big ol' State Machine
-        
         # STATE_INIT 
         if self._state == self.STATE_INIT:
-            # Initialize variables
             self._timer = None      
-            # Set default pin states
-            self._change_state(self.STATE_IDLE)
+            self._change_state(self.STATE_IDLE, "Initialization complete.")
             pass
         
         # STATE_IDLE            
         elif self._state == self.STATE_IDLE:
-            if self._transition_request == self.TRANSITION_NONE:
-                pass # Do nothing - no request to change
-            elif self._transition_request == self.TRANSITION_OPEN:
-                self._transition_request = self.TRANSITION_NONE
-                self._change_state(self.STATE_START_OPENING)
+            if self._transition_request == self.TRANSITION_OPEN:
+                self._change_state(self.STATE_START_OPENING, "Start opening.")
             elif self._transition_request == self.TRANSITION_CLOSE:
-                self._transition_request = self.TRANSITION_NONE
-                self._change_state(self.STATE_START_CLOSING)
+                self._change_state(self.STATE_START_CLOSING, "Start closing")
+            self._transition_request = self.TRANSITION_NONE
             pass
         
-        # TODO: STATE_START_OPENING
+        # STATE_START_OPENING
         elif self._state == self.STATE_START_OPENING:
-            # Set the Pins to Open Valve
-            # Start the timer
+            self._set_drive_state(self.TRANSITION_OPEN)
             self._timer = TimeoutTimer(self._transition_timeout_secs)
-            self._change_state(self.STATE_OPENING)
+            self._change_state(self.STATE_OPENING, f"Valve Opening\tTimeout: {self._transition_timeout_secs} seconds")
             pass
         
-        # TODO: STATE_OPENING
+        # STATE_OPENING
         elif self._state == self.STATE_OPENING:
-            # Check the pins for the OPEN state
-            # Test the timer
-            if self._timer.has_timed_out():
-                # Error - timeout occurred
-                # return to idle state
-                pass
+            valve_position = self._get_valve_position()
+            if valve_position == self.VALVE_POSITION_OPEN:
+                self._change_state(self.STATE_OPEN)                
+            elif self._timer.has_timed_out():
+                self._set_drive_state(self.STATE_INIT, f"Valve Opening Timeout. Returning to INIT state.")
             pass
             
-        # TODO: STATE_OPEN
+        # STATE_OPEN
         elif self._state == self.STATE_OPEN:
-            # Set drive pins to idle
+            self._set_drive_state(self.STATE_IDLE)
+            self._change_state(self.STATE_IDLE, "Valve Open. Returning to IDLE state")
             pass
         
-        # TODO: STATE_START_CLOSING
+        # STATE_START_CLOSING
         elif self._state == self.STATE_START_CLOSING:
-            # Set the Pins to Close Valve
-            # Start the timer
+            self._set_drive_state(self.TRANSITION_CLOSE)
             self._timer = TimeoutTimer(self._transition_timeout_secs)
-            self._change_state(self.STATE_CLOSING)
+            self._change_state(self.STATE_CLOSING, f"Valve Closing\tTimeout: {self._transition_timeout_secs} seconds")
             pass
         
-        # TODO: STATE_CLOSING
+        # STATE_CLOSING
         elif self._state == self.STATE_CLOSING:
-            # Check the pins for the CLOSED state
-            # Test the timer
-            if self._timer.has_timed_out():
-                # Error - timeout occurred
-                # return to idle state
-                pass
+            valve_position = self._get_valve_position()
+            if valve_position == self.VALVE_POSITION_CLOSE:
+                self._change_state(self.STATE_CLOSED)  
+            elif self._timer.has_timed_out():
+                self._set_drive_state(self.STATE_INIT, f"Valve Closing Timeout. Returning to INIT state.")
             pass
-        # TODO: STATE_CLOSED    
+        
+        # STATE_CLOSED    
         elif self._state == self.STATE_CLOSED:
+            self._set_drive_state(self.STATE_IDLE)
+            self._change_state(self.STATE_IDLE, "Valve Closed")
             pass
         
         # Error - Unknown state, return to init
         else:
-            self._change_state(self.STATE_INIT)
-            # TODO: report error
+            self._change_state(self.STATE_INIT, f'Unknown state: [{self._state}]\tReturning to INIT state.')
             pass
     
     '''Change the state of the ball valve and call the state change callback if it is set'''
-    def _change_state(self, new_state):
+    def _change_state(self, new_state, context:str = "") -> None:
         self._state = new_state
-        if self._state_change_callback != None:
-            self._state_change_callback(self._state, new_state)
+        self._emit_state_change_event(new_state, context)
             
-    '''TODO: Read the state of the open input pin and return True if the ball valve is open, False otherwise'''
-    '''TRANSITION_NONE, TRANSITION_OPEN, or TRANSITION_CLOSE'''
-    def _get_valve_state(self) -> int:
-        pass
-                    
-    '''TODO: Change the drive pin state using the TRANSITION values'''
+    '''Read the state of the open input pin and return True if the ball valve is open, False otherwise'''
+    '''VALVE_POSITION_UNKNOWN, VALVE_POSITION_OPEN, or VALVE_POSITION_CLOSE'''
+    def _get_valve_position(self) -> int:
+        valve_position = self.VALVE_POSITION_UNKNOWN
+        open_pin_state = self._mcp_io.read_kitchensink_dinput(self._open_pin)
+        close_pin_state = self._mcp_io.read_kitchensink_dinput(self._close_pin)
+        if (open_pin_state) and (not close_pin_state):
+            valve_position = self.VALVE_POSITION_CLOSE
+        elif (not open_pin_state) and (close_pin_state):
+            valve_position = self.VALVE_POSITION_OPEN
+        return valve_position
+                      
+    '''Change the drive pin state using the TRANSITION values'''
     '''TRANSITION_NONE, TRANSITION_OPEN, or TRANSITION_CLOSE'''
     def _set_drive_state(self, transition : int):
         if transition == self.TRANSITION_NONE:
-            # Code to set the drive pin to stop the valve goes here
-            pass
+            self._mcp_io.write_kitchensink_doutput(self._direction_pin, False)
+            self._mcp_io.write_kitchensink_doutput(self._enable_pin, False)
         elif transition == self.TRANSITION_OPEN:
-            # Code to set the drive pin to open the valve goes here
-            pass
+            self._mcp_io.write_kitchensink_doutput(self._direction_pin, False)
+            self._mcp_io.write_kitchensink_doutput(self._enable_pin, True)
         elif transition == self.TRANSITION_CLOSE:
-            # Code to set the drive pin to close the valve goes here
-            pass
+            self._mcp_io.write_kitchensink_doutput(self._direction_pin, True)
+            self._mcp_io.write_kitchensink_doutput(self._enable_pin, True)
         else:
-            # Error - unknown transition state
-            pass    
+            raise Exception("_set_drive_state:: Unknown drive state transition")
+        pass
+    
+    '''Emit a state change event to the caller if the state change callback is set'''
+    def _emit_state_change_event(self, new_state:int, err_message : str):
+        if self._state_change_callback != None:
+            self._state_change_callback(self._state, new_state, err_message) 
