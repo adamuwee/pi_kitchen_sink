@@ -68,7 +68,7 @@ class BallValve:
                  din_close_pin,
                  dout_direction_pin, 
                  dout_enable_pin, 
-                 transition_timeout_secs=10,
+                 transition_timeout_secs=20,
                  state_change_callback=None):
         
         # Init vars
@@ -262,3 +262,22 @@ if __name__ == '__main__':
             time.sleep(1.0)
             elapsed_time = (datetime.datetime.now() - start_time).total_seconds()
         
+        # Run out the state machine
+        for proc_index in range(10):
+            ball_valve.process()
+            time.sleep(0.1)
+            
+        # Close Valve
+        test_timeout_seconds = 20
+        start_time = datetime.datetime.now()
+        elapsed_time = (datetime.datetime.now() - start_time).total_seconds()
+        print("Closing valve...")
+
+        ball_valve.request_close()
+        valve_position = ball_valve.VALVE_POSITION_UNKNOWN
+        while elapsed_time < test_timeout_seconds and valve_position is not ball_valve.VALVE_POSITION_CLOSE:
+            ball_valve.process()
+            valve_position = ball_valve.get_valve_position()
+            print(f"Valve State: 0b{valve_position:02b}\tTiming: {elapsed_time:.0f} of {test_timeout_seconds}s")
+            time.sleep(1.0)
+            elapsed_time = (datetime.datetime.now() - start_time).total_seconds()        
