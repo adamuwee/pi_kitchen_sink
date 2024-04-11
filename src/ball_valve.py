@@ -225,9 +225,31 @@ def _state_change_callback(self, new_state:int, context:str):
 '''Component Test'''
 if __name__ == '__main__':
     
-    # Test Objects
-    mcp = mcp23017.MCP23017(0x21)
-    ball_valve = BallValve(mcp, 0, 1, 8, 9, state_change_callback=_state_change_callback)
+    valve_channel = 3   # Valid Range: 0-3
+    
+    if valve_channel < 0 or valve_channel > 3:
+        raise Exception("Invalid Valve Channel")
+       
+    # I/O Port Expander
+    mcp_device = mcp23017.MCP23017(0x21)
+    
+    # Pin assignments
+    pin_assignments = ([    [0, 1, 8, 9], 
+                            [2, 3, 10, 11], 
+                            [4, 5, 12, 13], 
+                            [6, 7, 14, 15]])
+    
+    open_pin        = pin_assignments[valve_channel][0] # Green
+    close_pin       = pin_assignments[valve_channel][1] # Red
+    direction_pin   = pin_assignments[valve_channel][2] # Yellow
+    enable_pin      = pin_assignments[valve_channel][3] # Blue
+          
+    ball_valve = BallValve(mcp_device, 
+                           open_pin, 
+                           close_pin, 
+                           direction_pin, 
+                           enable_pin, 
+                           state_change_callback=_state_change_callback)
     
     # Test List
     test_read_valve_state = False
@@ -240,7 +262,7 @@ if __name__ == '__main__':
         elapsed_time = (datetime.datetime.now() - start_time).total_seconds()
         while elapsed_time < test_duration_seconds:
             valve_position = ball_valve.get_valve_position()
-            print(f"Valve State: 0b{valve_position:02b}\tTiming: {elapsed_time:.0f} of {test_duration_seconds}s")
+            print(f"Valve State Ch. # {valve_channel+1}: 0b{valve_position:02b}\tTiming: {elapsed_time:.0f} of {test_duration_seconds}s")
             time.sleep(1.0)
             elapsed_time = (datetime.datetime.now() - start_time).total_seconds()
     
@@ -258,7 +280,7 @@ if __name__ == '__main__':
         while elapsed_time < test_timeout_seconds and valve_position is not ball_valve.VALVE_POSITION_OPEN:
             ball_valve.process()
             valve_position = ball_valve.get_valve_position()
-            print(f"Valve State: 0b{valve_position:02b}\tTiming: {elapsed_time:.0f} of {test_timeout_seconds}s")
+            print(f"Valve State Ch. # {valve_channel+1}: 0b{valve_position:02b}\tTiming: {elapsed_time:.0f} of {test_timeout_seconds}s")
             time.sleep(1.0)
             elapsed_time = (datetime.datetime.now() - start_time).total_seconds()
         
@@ -278,6 +300,6 @@ if __name__ == '__main__':
         while elapsed_time < test_timeout_seconds and valve_position is not ball_valve.VALVE_POSITION_CLOSE:
             ball_valve.process()
             valve_position = ball_valve.get_valve_position()
-            print(f"Valve State: 0b{valve_position:02b}\tTiming: {elapsed_time:.0f} of {test_timeout_seconds}s")
+            print(f"Valve State Ch. # {valve_channel+1}: 0b{valve_position:02b}\tTiming: {elapsed_time:.0f} of {test_timeout_seconds}s")
             time.sleep(1.0)
             elapsed_time = (datetime.datetime.now() - start_time).total_seconds()        
