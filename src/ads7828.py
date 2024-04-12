@@ -19,7 +19,8 @@ class ADS7828:
     # Constants
     full_scale_12bits = math.pow(2, 12)
     _channel_reg_index = [0x000, 0b100, 0b001, 0b101, 0b010, 0b110, 0b011, 0b111]
-
+    #_channel_reg_index = [0x000, 0b001, 0b010, 0b011, 0b100, 0b101, 0b110, 0b111]
+    
     # ADS7828 I2C Command Byte
     # Input Type: 
     #   Differential = 0
@@ -55,7 +56,7 @@ class ADS7828:
             self.bus.write_byte(self._i2c_addr, command_byte)
             data = self.bus.read_i2c_block_data(self._i2c_addr, command_byte, 2)
             raw_adc_bits = (data[0] & 0x0F) * 256 + data[1]
-            print(f"ch_idx:{channel_reg_index}\tcmd_byte:{command_byte:08b}\tdata:{raw_adc_bits:04x}")
+            print(f"ch_idx:{channel_index}\tcmd_byte:{command_byte:08b}\tdata:{raw_adc_bits:04x}")
             # Raw / Uncalibrated Voltage
             adc_voltage = (raw_adc_bits / self.full_scale_12bits) * scale
             # Apply Channel Calibration
@@ -147,7 +148,9 @@ class ADS7828:
 '''Measure and print 8 channels'''
 if __name__ == '__main__':
     
+    # ADC Device
     ads7828 = ADS7828()
+    
     while True:
         now = datetime.datetime.now()
         print(f"Time: {now}")
