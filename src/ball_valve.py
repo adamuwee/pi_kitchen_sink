@@ -110,6 +110,15 @@ class BallValve:
         if self._timer != None:
             time_remaining = self._timer.time_remaining_seconds()  
         return ValveState(current_state, time_remaining)
+    
+    def is_open(self) -> bool:
+        return self.get_valve_position() == self.VALVE_POSITION_OPEN
+    
+    def is_closed(self) -> bool:
+        return self.get_valve_position() == self.VALVE_POSITION_CLOSE
+    
+    def is_timedout(self) -> bool:
+        return self._timed_out
              
     '''Public API: This should be called in a loop to process the ball valve state and transition timeouts'''
     def process(self):
@@ -134,16 +143,19 @@ class BallValve:
             self._set_drive_state(self.TRANSITION_OPEN)
             self._timer = TimeoutTimer(self._transition_timeout_secs)
             self._change_state(self.STATE_OPENING, f"Valve Opening\tTimeout: {self._transition_timeout_secs} seconds")
+            self._timed_out = False
             pass
         
         # STATE_OPENING
         elif self._state == self.STATE_OPENING:
             valve_position = self.get_valve_position()
             if valve_position == self.VALVE_POSITION_OPEN:
-                self._change_state(self.STATE_OPEN, f"Valve Opened - moving to OPEN state.")                
+                self._change_state(self.STATE_OPEN, f"Valve Opened - moving to OPEN state.")  
+                self._timed_out = False              
             elif self._timer.has_timed_out():
                 self._set_drive_state(self.STATE_INIT)
-                self._change_state(self.STATE_INIT, f"Valve Opening Timeout. Returning to INIT state.")    
+                self._change_state(self.STATE_INIT, f"Valve Opening Timeout. Returning to INIT state.")   
+                self._timed_out = True 
             pass
             
         # STATE_OPEN
@@ -164,13 +176,16 @@ class BallValve:
             valve_position = self.get_valve_position()
             if valve_position == self.VALVE_POSITION_CLOSE:
                 self._change_state(self.STATE_CLOSED, f"Valve Closed. Returning to IDLE state.")  
+                self._timed_out = False 
             elif self._timer.has_timed_out():
                 self._set_drive_state(self.STATE_INIT)
                 self._change_state(self.STATE_INIT, f"Valve Closiing Timeout. Returning to INIT state.")  
+                self._timed_out = True 
             pass
         
         # STATE_CLOSED    
         elif self._state == self.STATE_CLOSED:
+            self._timed_out = False
             self._set_drive_state(self.STATE_IDLE)
             self._change_state(self.STATE_IDLE, "Valve Closed")
             pass
