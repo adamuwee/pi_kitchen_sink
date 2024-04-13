@@ -45,7 +45,7 @@ IOCON_MIRROR	    = 0x40
 IOCON_BANK_MODE	    = 0x80
 
 class MCP23017:
-    def __init__(self, address, bus=1):
+    def __init__(self, address=0x21, bus=1):
         self.address = address
         self.bus = smbus.SMBus(bus)
         

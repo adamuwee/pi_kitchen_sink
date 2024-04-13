@@ -60,6 +60,7 @@ class BallValve:
     _state_change_callback = None
     _timer = None
     _mcp_io = None
+    _timed_out = False
     
     '''Initialize Ball Valve Object - fast init'''
     def __init__(self, 
@@ -153,14 +154,13 @@ class BallValve:
                 self._change_state(self.STATE_OPEN, f"Valve Opened - moving to OPEN state.")  
                 self._timed_out = False              
             elif self._timer.has_timed_out():
-                self._set_drive_state(self.STATE_INIT)
                 self._change_state(self.STATE_INIT, f"Valve Opening Timeout. Returning to INIT state.")   
                 self._timed_out = True 
             pass
             
         # STATE_OPEN
         elif self._state == self.STATE_OPEN:
-            self._set_drive_state(self.STATE_IDLE)
+            self._set_drive_state(self.TRANSITION_NONE)
             self._change_state(self.STATE_IDLE, "Valve Open. Returning to IDLE state.")
             pass
         
@@ -178,7 +178,6 @@ class BallValve:
                 self._change_state(self.STATE_CLOSED, f"Valve Closed. Returning to IDLE state.")  
                 self._timed_out = False 
             elif self._timer.has_timed_out():
-                self._set_drive_state(self.STATE_INIT)
                 self._change_state(self.STATE_INIT, f"Valve Closiing Timeout. Returning to INIT state.")  
                 self._timed_out = True 
             pass
@@ -186,7 +185,7 @@ class BallValve:
         # STATE_CLOSED    
         elif self._state == self.STATE_CLOSED:
             self._timed_out = False
-            self._set_drive_state(self.STATE_IDLE)
+            self._set_drive_state(self.TRANSITION_NONE)
             self._change_state(self.STATE_IDLE, "Valve Closed")
             pass
         
@@ -240,7 +239,7 @@ def _state_change_callback(self, new_state:int, context:str):
 '''Component Test'''
 if __name__ == '__main__':
     
-    valve_channel = 3   # Valid Range: 0-3
+    valve_channel = 0   # Valid Range: 0-3
     
     if valve_channel < 0 or valve_channel > 3:
         raise Exception("Invalid Valve Channel")

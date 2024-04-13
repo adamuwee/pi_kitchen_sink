@@ -83,6 +83,7 @@ class PumpBoxService:
             if self._pump_state == self.PUMP_STATE_INIT:
                 self._pump_request = self.PUMP_REQUEST_NONE
                 self._last_pump_start = None
+                self._ball_valve.request_close()
                 self._change_state(self.PUMP_STATE_IDLE)
                 pass
             
@@ -137,12 +138,11 @@ class PumpBoxService:
 
             # Sleep to prevent CPU thrashing     
             time.sleep(0.1)
-    
-
-        
+            
     def _change_state(self, new_state):
         '''Change the state of the pump'''
         self._pump_state = new_state
+        self._logger.write(self.LOG_KEY, f"New state: {self._system_state_to_str(self._pump_state)}", logger.MessageLevel.INFO)
         sys_state_topic = self._config.active_config['publish']['system_state']
         self._mqtt_client.publish(sys_state_topic, self._system_state_to_str(self._pump_state))
         
@@ -152,9 +152,9 @@ class PumpBoxService:
         # Parse the message
         if topic == self._format_topic(self._config.active_config['subscribe']['pump_control']):
             self._logger.write(self.LOG_KEY, f"Pump Control Updated: [{message}]", logger.MessageLevel.INFO)
-            if message == 'ON':
+            if message == b'ON':
                 self._pump_request = self.PUMP_REQUEST_ON
-            elif message == 'OFF':
+            elif message == b'OFF':
                 self._pump_request = self.PUMP_REQUEST_OFF
             
     def _on_publish_message(self, topic, message) -> None:
@@ -165,9 +165,12 @@ class PumpBoxService:
         '''Format the topic with the base topic'''
         return f"{self._config.active_config['base_topic']}/{topic}"  
     
-    def _ball_valve_state_change(self, new_state) -> None:
+    def _ball_valve_state_change(self, valve_state, new_state, context) -> None:
         '''Callback for when the ball valve state changes'''
-        self._logger.write(self.LOG_KEY, f"Ball Valve State Changed: [{new_state}]", logger.MessageLevel.INFO)
+        ball_valve_state_str = f"Ball Valve State Changed [{new_state}]: {context}"
+        self._logger.write(self.LOG_KEY, ball_valve_state_str, logger.MessageLevel.INFO)
+        valve_state_topic = self._config.active_config['publish']['valve_state']
+        self._mqtt_client.publish(valve_state_topic, ball_valve_state_str)
     
     def _system_state_to_str(self, state) -> str:
         if state == self.PUMP_STATE_INIT:
@@ -175,17 +178,17 @@ class PumpBoxService:
         elif state == self.PUMP_STATE_IDLE:
             return "IDLE"
         elif state == self.PUMP_STATE_STARTING:
-            return "IDLE"
+            return "STARTING"
         elif state == self.PUMP_STATE_OPENING_VALVE:
-            return "IDLE"
+            return "OPENING VALVE"
         elif state == self.PUMP_STATE_PUMPING:
-            return "IDLE"
+            return "PUMPING"
         elif state == self.PUMP_STATE_STOPPING:
-            return "IDLE"
+            return "STOPPING"
         elif state == self.PUMP_STATE_CLOSING_VALVE:
-            return "IDLE"
+            return "CLOSING VALVE"
         elif state == self.PUMP_STATE_STOPPED:
-            return "IDLE"
+            return "STOPPED"
         else:
             raise Exception("Unknown State")
             
