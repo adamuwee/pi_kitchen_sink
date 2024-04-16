@@ -133,6 +133,7 @@ class ConfigManager:
         self.active_config['publish']['valve_state'] = 'valve_state'
         self.active_config['publish']['water_pressure'] = 'pressure'
         self.active_config['publish']['motor_current'] = 'motor_current'
+        self.active_config['publish']['pump_run_time_secs'] = 'pump_run_time_secs'
         
         # Ball Valve
         self.active_config['ball_valve']['open_pin'] = 0
@@ -141,6 +142,16 @@ class ConfigManager:
         self.active_config['ball_valve']['enable_pin'] = 9
         self.active_config['ball_valve']['transition_time_secs'] = 20
 
+        # Motor Current
+        self.active_config['motor_current']['adc_channel_index'] = 0
+        self.active_config['motor_current']['scale'] = 1
+        self.active_config['motor_current']['offset'] = 0
+
+        # Water Pressure
+        self.active_config['water_pressure']['adc_channel_index'] = 0
+        self.active_config['water_pressure']['scale'] = 1
+        self.active_config['water_pressure']['offset'] = 0
+                    
     '''
     Recursively convert all defaultdicts to dicts; useful for JSON serialization
     '''

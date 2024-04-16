@@ -56,7 +56,7 @@ class ADS7828:
             self.bus.write_byte(self._i2c_addr, command_byte)
             data = self.bus.read_i2c_block_data(self._i2c_addr, command_byte, 2)
             raw_adc_bits = (data[0] & 0x0F) * 256 + data[1]
-            print(f"ch_idx:{channel_index}\tcmd_byte:{command_byte:08b}\tdata:{raw_adc_bits:04x}")
+            #print(f"ch_idx:{channel_index}\tcmd_byte:{command_byte:08b}\tdata:{raw_adc_bits:04x}")
             # Raw / Uncalibrated Voltage
             adc_voltage = (raw_adc_bits / self.full_scale_12bits) * scale
             # Apply Channel Calibration
@@ -80,7 +80,7 @@ class ADS7828:
             self.bus.write_byte(self._i2c_addr, command_byte)
             data = self.bus.read_i2c_block_data(self._i2c_addr, command_byte, 2)
             raw_adc_bits = (data[0] & 0x0F) * 256 + data[1]
-            print(f"ch_idx:{channel_reg_index}\tcmd_byte:{command_byte:08b}\tdata:{raw_adc_bits:04x}")
+            #print(f"ch_idx:{channel_reg_index}\tcmd_byte:{command_byte:08b}\tdata:{raw_adc_bits:04x}")
             # Raw / Uncalibrated Voltage
             adc_voltage = (raw_adc_bits / self.full_scale_12bits) * scale
             # Apply Channel Calibration

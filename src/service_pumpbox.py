@@ -5,16 +5,91 @@ import logger
 import pumpbox_config
 import mqtt_client_pubsub
 import mcp23017
+import ads7828
 import ball_valve
 
 class ServiceExitError:
     def __init__(self, error = True, error_message = "") -> None:
         self.error = error
         self.error_message = error_message
-        
+
+class PumpMonitor:
+    '''Class Constants'''
+    LOG_KEY = 'monitor'
+    
+    '''Public Variables'''
+    motor_current_amps = None
+    water_pressure_psi = None
+    pump_run_time_secs = None
+    
+    '''Private Variables'''
+    _last_mqtt_publish = None
+    _pump_start_time = None
+    
+    def __init__(self, app_logger, app_config, mqtt_client, mqtt_transmit_time_sec=5) -> None:
+        '''Monitors environmental conditions of the pump.'''
+        self._logger = app_logger
+        self._config = app_config
+        self._mqtt_client = mqtt_client
+        self._mqtt_transmit_time_sec = mqtt_transmit_time_sec
+        self._adc = ads7828.ADS7828()
+    
+    def update(self):
+        '''Refreshes measurements from the pump.'''
+        # Motor Current (Amps)
+        self.motor_current_amps = None
+        motor_current_channel_index = self._config.active_config['motor_current']['adc_channel_index']
+        raw_motor_current_meas = self._adc.get_4to20ma_from_channel(motor_current_channel_index)
+        motor_current_scale = self._config.active_config['motor_current']['scale']
+        motor_current_offset = self._config.active_config['motor_current']['offset']
+        self.motor_current_amps = motor_current_scale * raw_motor_current_meas + motor_current_offset
+        # Water Pressure (PSI)    
+        self.water_pressure_psi = None
+        water_pressure_channel_index = self._config.active_config['water_pressure']['adc_channel_index']
+        raw_water_pressure_meas = self._adc.get_4to20ma_from_channel(water_pressure_channel_index)
+        water_pressure_scale = self._config.active_config['water_pressure']['scale']
+        water_pressure_offset = self._config.active_config['water_pressure']['offset']
+        self.water_pressure_psi = water_pressure_scale * raw_water_pressure_meas + water_pressure_offset
+        # Run Time
+        self.pump_run_time_secs = 0
+        if self._pump_start_time != None:
+             self.pump_run_time_secs = (datetime.datetime.now() - self._pump_start_time).total_seconds()
+             
+        # Print it
+        self._logger.write(self.LOG_KEY, f"Motor Current: {self.motor_current_amps:.2f} A", logger.MessageLevel.INFO)
+        self._logger.write(self.LOG_KEY, f"Water Pressure: {self.water_pressure_psi:.0f} PSI", logger.MessageLevel.INFO)
+        self._logger.write(self.LOG_KEY, f"Pump Run Time: {self.pump_run_time_secs:.0f} secs", logger.MessageLevel.INFO)        
+        # Ship it
+        if self._last_mqtt_publish == None or (datetime.datetime.now() - self._last_mqtt_publish).total_seconds() > self._mqtt_transmit_time_sec:
+            self._last_mqtt_publish = datetime.datetime.now()
+            self._mqtt_client.publish(self._config.active_config['publish']['motor_current'], self.motor_current_amps)
+            self._mqtt_client.publish(self._config.active_config['publish']['water_pressure'], self.water_pressure_psi)
+            self._mqtt_client.publish(self._config.active_config['publish']['pump_run_time_secs'], self.water_pressure_psi)
+    
+    def update_pump_state(self, new_state):
+        '''Updated from the main state machine and used to monitor the pump'''
+        if new_state == PumpBoxService.PUMP_STATE_INIT:
+            self._pump_start_time = None
+        elif new_state == PumpBoxService.PUMP_STATE_IDLE:
+            self._pump_start_time = None
+        elif new_state == PumpBoxService.PUMP_STATE_STARTING:
+            self._pump_start_time = datetime.datetime.now()
+        elif new_state == PumpBoxService.PUMP_STATE_OPENING_VALVE:
+            pass
+        elif new_state == PumpBoxService.PUMP_STATE_PUMPING:
+            pass
+        elif new_state == PumpBoxService.PUMP_STATE_STOPPING:
+            pass
+        elif new_state == PumpBoxService.PUMP_STATE_CLOSING_VALVE:
+            pass
+        elif new_state == PumpBoxService.PUMP_STATE_STOPPED:
+            pass
+        else:
+            pass
+                        
 class PumpBoxService:
     
-    '''Service Constants'''
+    '''Class Constants'''
     LOG_KEY = 'service'
     
     # Pump State
@@ -48,6 +123,8 @@ class PumpBoxService:
         self._logger = app_logger
         self._config = app_config
         
+        
+        
         # Create and Start Mqtt Client
         self._logger.write(self.LOG_KEY, "Initializing MQTT Client...", logger.MessageLevel.INFO)
         self._mqtt_client = mqtt_client_pubsub.MqttClient(app_config, 
@@ -68,6 +145,11 @@ class PumpBoxService:
                                                 self._config.active_config['ball_valve']['enable_pin'],
                                                 self._config.active_config['ball_valve']['transition_time_secs'],
                                                 state_change_callback=self._ball_valve_state_change)
+        
+        # Pump Monitor
+        self._pump_monitor = PumpMonitor(app_logger, app_config, self._mqtt_client)
+        
+        
                 
     ''' Run Main Loop '''
     def run(self) -> ServiceExitError:
@@ -77,7 +159,8 @@ class PumpBoxService:
             self._last_loop_start = datetime.datetime.now()
             # Process the ball valve state machine
             self._ball_valve.process()
-            
+            # Update Monitor
+            self._pump_monitor.update()
             # Main State Machine
             # PUMP_STATE_INIT - Initialize vars and state machine
             if self._pump_state == self.PUMP_STATE_INIT:
@@ -143,6 +226,7 @@ class PumpBoxService:
         '''Change the state of the pump'''
         self._pump_state = new_state
         self._logger.write(self.LOG_KEY, f"New state: {self._system_state_to_str(self._pump_state)}", logger.MessageLevel.INFO)
+        self._pump_monitor.update_pump_state(self._pump_state)
         sys_state_topic = self._config.active_config['publish']['system_state']
         self._mqtt_client.publish(sys_state_topic, self._system_state_to_str(self._pump_state))
         

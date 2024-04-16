@@ -37,7 +37,7 @@ class Logger:
         # [DateTime][key][level]{message} 
         header = "[{0}][{1}][{2}]".format(datetime.now(),
                                             key,
-                                            level_str).ljust(60)
+                                            level_str).ljust(50)
         #print(header + msg)
         os.write(sys.stdout.fileno(), ("\n" + header + msg).encode('utf8'))
     
