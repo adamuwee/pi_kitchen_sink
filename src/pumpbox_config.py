@@ -131,10 +131,12 @@ class ConfigManager:
         # Publish Topics
         self.active_config['publish']['system_state'] = 'system_state'
         self.active_config['publish']['valve_state'] = 'valve_state'
+        self.active_config['publish']['valve_position'] = 'valve_position'
         self.active_config['publish']['water_pressure'] = 'pressure'
         self.active_config['publish']['motor_current'] = 'motor_current'
         self.active_config['publish']['pump_run_time_secs'] = 'pump_run_time_secs'
-        
+        self.active_config['publish']['error_message'] = 'error_message'
+
         # Ball Valve
         self.active_config['ball_valve']['open_pin'] = 0
         self.active_config['ball_valve']['close_pin'] = 1
@@ -142,11 +144,17 @@ class ConfigManager:
         self.active_config['ball_valve']['enable_pin'] = 9
         self.active_config['ball_valve']['transition_time_secs'] = 20
 
+        # Motor Contactor
+        self.active_config['motor_contactor']['direction_pin'] = 10
+        self.active_config['motor_contactor']['enable_pin'] = 11
+        self.active_config['motor_contactor']['max_motor_runtime_secs'] = 1200
+
         # Motor Current
         self.active_config['motor_current']['adc_channel_index'] = 0
-        self.active_config['motor_current']['scale'] = 1
-        self.active_config['motor_current']['offset'] = 0
-
+        self.active_config['motor_current']['scale'] = 1.563
+        self.active_config['motor_current']['offset'] = -6.250
+        self.active_config['motor_current']['max_motor_current_amps'] = 10.0
+        
         # Water Pressure
         self.active_config['water_pressure']['adc_channel_index'] = 0
         self.active_config['water_pressure']['scale'] = 1

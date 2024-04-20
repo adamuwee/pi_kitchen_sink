@@ -15,6 +15,8 @@ class ADS7828:
     _error_counter = 0
     _sample_counter  = 0
     _channel_calibration = None
+    _average_window_depth = 5
+    _buffer_array = list()
 
     # Constants
     full_scale_12bits = math.pow(2, 12)
@@ -154,7 +156,7 @@ if __name__ == '__main__':
     while True:
         now = datetime.datetime.now()
         print(f"Time: {now}")
-        #adc_raw_data = ads7828.get_voltages_from_device(apply_calibration=False)
+        #adc_raw_data = ads7828.get_voltages_from_device(apply_calibration=True)
         adc_raw_data = ads7828.get_currents_from_device()
         data_dict = dict()
         channel_index = 0

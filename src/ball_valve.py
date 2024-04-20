@@ -61,6 +61,7 @@ class BallValve:
     _timer = None
     _mcp_io = None
     _timed_out = False
+    _verbose_status_msg = False
     
     '''Initialize Ball Valve Object - fast init'''
     def __init__(self, 
@@ -70,7 +71,8 @@ class BallValve:
                  dout_direction_pin, 
                  dout_enable_pin, 
                  transition_timeout_secs=20,
-                 state_change_callback=None):
+                 state_change_callback=None,
+                 valve_position_change_callback=None):
         
         # Init vars
         self._mcp_io = mcp_io
@@ -82,6 +84,7 @@ class BallValve:
 
         self._transition_timeout_secs = transition_timeout_secs
         self._state_change_callback = state_change_callback
+        self._valve_position_change_callback = valve_position_change_callback
         
         self._transition_request = self.TRANSITION_NONE
         self._state = self.STATE_INIT
@@ -203,12 +206,16 @@ class BallValve:
     '''VALVE_POSITION_UNKNOWN, VALVE_POSITION_OPEN, or VALVE_POSITION_CLOSE'''
     def get_valve_position(self) -> int:
         valve_position = self.VALVE_POSITION_UNKNOWN
+        valve_position_string = "Unknown"
         open_pin_state = self._mcp_io.read_kitchensink_dinput(self._open_pin)
         close_pin_state = self._mcp_io.read_kitchensink_dinput(self._close_pin)
         if (open_pin_state) and (not close_pin_state):
             valve_position = self.VALVE_POSITION_CLOSE
+            valve_position_string = "Closed"
         elif (not open_pin_state) and (close_pin_state):
             valve_position = self.VALVE_POSITION_OPEN
+            valve_position_string = "Open"
+        self._emit_valve_position_change_callback(valve_position_string)
         return valve_position
                       
     '''Change the drive pin state using the TRANSITION values'''
@@ -230,7 +237,33 @@ class BallValve:
     '''Emit a state change event to the caller if the state change callback is set'''
     def _emit_state_change_event(self, new_state:int, err_message : str):
         if self._state_change_callback != None:
-            self._state_change_callback(self._state, new_state, err_message) 
+            self._state_change_callback(self._state, 
+                                        self._state_to_string(new_state), 
+                                        err_message) 
+            
+    def _state_to_string(self, state) -> str:
+        if state == BallValve.STATE_INIT:
+            return "Init"
+        elif state == BallValve.STATE_IDLE:
+            return "Idle"
+        elif state == BallValve.STATE_START_OPENING:
+            return "Start Opening"
+        elif state == BallValve.STATE_OPENING:
+            return "Opening"
+        elif state == BallValve.STATE_OPEN:
+            return "Open"
+        elif state == BallValve.STATE_START_CLOSING:
+            return "Start Closing"
+        elif state == BallValve.STATE_CLOSING:
+            return "Closing"
+        elif state == BallValve.STATE_CLOSED:
+            return "Closed"
+        else:
+            return "Unknown Valve State"
+    
+    def _emit_valve_position_change_callback(self, valve_state_str:str): 
+        if self._valve_position_change_callback != None:
+            self._valve_position_change_callback(valve_state_str)
             
 
 def _state_change_callback(self, new_state:int, context:str):

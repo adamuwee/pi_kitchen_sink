@@ -14,6 +14,25 @@ class ServiceExitError:
         self.error_message = error_message
 
 class PumpMonitor:
+    MEAS_TYPE_CURRENT = "Motor Current"
+    MEAS_TYPE_PRESSURE = "Water Pressure"
+    MEAS_TYPE_RUNTIME = "Motor Run-time"
+            
+    class PumpMonitorLimits:
+        
+
+        
+        def __init__(self, name, error_msg, measurement_name, evaluation_function, shutdown_on_error=True) -> None:
+            self.name = name
+            self.error_msg = error_msg
+            self.evaluation_function = evaluation_function 
+            self.measurement_name = measurement_name 
+            self.shutdown_on_error = shutdown_on_error
+            self.error_result = ""
+        
+        def test_limit(self, value) -> bool:
+            return self.evaluation_function(value)
+    
     '''Class Constants'''
     LOG_KEY = 'monitor'
     
@@ -25,15 +44,32 @@ class PumpMonitor:
     '''Private Variables'''
     _last_mqtt_publish = None
     _pump_start_time = None
-    
-    def __init__(self, app_logger, app_config, mqtt_client, mqtt_transmit_time_sec=5) -> None:
+        
+    def __init__(self, app_logger, app_config, mqtt_client, mqtt_transmit_time_sec=1) -> None:
         '''Monitors environmental conditions of the pump.'''
         self._logger = app_logger
         self._config = app_config
         self._mqtt_client = mqtt_client
         self._mqtt_transmit_time_sec = mqtt_transmit_time_sec
         self._adc = ads7828.ADS7828()
-    
+        '''Create Monitor Limits'''
+        self._monitor_limits = list()
+        max_motor_current_amps = self._config.active_config['motor_current']['max_motor_current_amps']
+        self._monitor_limits.append(PumpMonitor.PumpMonitorLimits("Motor Current", 
+                                                                  "Motor Current Exceeded",
+                                                                  PumpMonitor.MEAS_TYPE_CURRENT, 
+                                                                  (lambda x: x > max_motor_current_amps),
+                                                                    shutdown_on_error=True))
+        max_motor_runtime_secs = self._config.active_config['motor_contactor']['max_motor_runtime_secs']
+        self._monitor_limits.append(PumpMonitor.PumpMonitorLimits("Motor Run-time", 
+                                                                  "Motor Run-time Exceeded",
+                                                                  PumpMonitor.MEAS_TYPE_RUNTIME,  
+                                                                  (lambda x: x > max_motor_runtime_secs),
+                                                                    shutdown_on_error=True))
+        MEAS_TYPE_CURRENT = "Motor Current"
+        MEAS_TYPE_PRESSURE = "Water Pressure"
+        MEAS_TYPE_RUNTIME = "Motor Run-time"
+        
     def update(self):
         '''Refreshes measurements from the pump.'''
         # Motor Current (Amps)
@@ -54,7 +90,6 @@ class PumpMonitor:
         self.pump_run_time_secs = 0
         if self._pump_start_time != None:
              self.pump_run_time_secs = (datetime.datetime.now() - self._pump_start_time).total_seconds()
-             
         # Print it
         self._logger.write(self.LOG_KEY, f"Motor Current: {self.motor_current_amps:.2f} A", logger.MessageLevel.INFO)
         self._logger.write(self.LOG_KEY, f"Water Pressure: {self.water_pressure_psi:.0f} PSI", logger.MessageLevel.INFO)
@@ -64,7 +99,29 @@ class PumpMonitor:
             self._last_mqtt_publish = datetime.datetime.now()
             self._mqtt_client.publish(self._config.active_config['publish']['motor_current'], self.motor_current_amps)
             self._mqtt_client.publish(self._config.active_config['publish']['water_pressure'], self.water_pressure_psi)
-            self._mqtt_client.publish(self._config.active_config['publish']['pump_run_time_secs'], self.water_pressure_psi)
+            self._mqtt_client.publish(self._config.active_config['publish']['pump_run_time_secs'], self.pump_run_time_secs)
+  
+    def test_limits(self) -> list:
+        '''Returns of list of limit violations'''
+        violations = list()
+        for limit in self._monitor_limits:
+            measurement = None
+            units = ""
+            if limit.measurement_name == PumpMonitor.MEAS_TYPE_CURRENT: 
+                measurement = self.motor_current_amps
+                units = "A"
+            elif limit.measurement_name == PumpMonitor.MEAS_TYPE_PRESSURE:
+                measurement = self.water_pressure_psi
+                units = "PSI"
+            elif limit.measurement_name == PumpMonitor.MEAS_TYPE_RUNTIME:
+                measurement = (datetime.datetime.now() - self._pump_start_time).total_seconds()
+                units = "secs"
+            else:
+                raise Exception("test_limits:Unknown measurement type specified for monitor limit")
+            if limit.test_limit(measurement):
+                limit.error_result = f"Limit Violation: {limit.name} - {measurement:.2f} {units}"
+                violations.append(limit)
+        return violations
     
     def update_pump_state(self, new_state):
         '''Updated from the main state machine and used to monitor the pump'''
@@ -116,6 +173,8 @@ class PumpBoxService:
     _last_pump_start = None
     _analog_inputs = None
     _mcp_portexpander = None
+    _ignore_first_mqtt_remote_control = True
+    _verbose_valve_state_message = False
     
     def __init__(self, app_logger, app_config) -> None:
         '''Initialize the PumpBoxService object - fast init, _can_ fail'''
@@ -144,7 +203,8 @@ class PumpBoxService:
                                                 self._config.active_config['ball_valve']['direction_pin'],
                                                 self._config.active_config['ball_valve']['enable_pin'],
                                                 self._config.active_config['ball_valve']['transition_time_secs'],
-                                                state_change_callback=self._ball_valve_state_change)
+                                                state_change_callback=self._ball_valve_state_change,
+                                                valve_position_change_callback=self._ball_valve_position_change)
         
         # Pump Monitor
         self._pump_monitor = PumpMonitor(app_logger, app_config, self._mqtt_client)
@@ -188,18 +248,29 @@ class PumpBoxService:
                 # If valve is open, start motor and move to next state
                 if self._ball_valve.is_open():
                     self._change_state(self.PUMP_STATE_PUMPING)
-                    # TODO Start motor
+                    self._energize_motor_contactor(True)
                     self._last_pump_start = datetime.datetime.now()
                 elif self._ball_valve.is_timedout():
                     self._change_state(self.PUMP_STATE_INIT)
                     # TODO Publish error        
             
             elif self._pump_state == self.PUMP_STATE_PUMPING:
+                '''Check for request to turn off pump'''
                 if self._pump_request == self.PUMP_REQUEST_OFF:
                     self._pump_request = self.PUMP_REQUEST_NONE
                     self._change_state(self.PUMP_STATE_STOPPING)
-                    # TODO Stop motor
+                    self._energize_motor_contactor(False)
                     self._ball_valve.request_close()
+                '''Test Limits'''
+                for violations in self._pump_monitor.test_limits():
+                    if violations.shutdown_on_error:
+                        self._change_state(self.PUMP_STATE_STOPPING)
+                        self._energize_motor_contactor(False)
+                        self._ball_valve.request_close()
+                        error_topic = self._config.active_config['publish']['error_message']
+                        self._mqtt_client.publish(error_topic, violations.error_msg)
+                        self._logger.write(self.LOG_KEY, f"Limit Violation: [{violations.error_msg}]", logger.MessageLevel.ERROR)
+            
                 pass
             
             # PUMP_STATE_STOPPING - Close the ball valve
@@ -235,11 +306,14 @@ class PumpBoxService:
         self._logger.write(self.LOG_KEY, f"New message: {topic}->[{message}]", logger.MessageLevel.INFO)
         # Parse the message
         if topic == self._format_topic(self._config.active_config['subscribe']['pump_control']):
-            self._logger.write(self.LOG_KEY, f"Pump Control Updated: [{message}]", logger.MessageLevel.INFO)
-            if message == b'ON':
-                self._pump_request = self.PUMP_REQUEST_ON
-            elif message == b'OFF':
-                self._pump_request = self.PUMP_REQUEST_OFF
+            if self._ignore_first_mqtt_remote_control:
+                self._ignore_first_mqtt_remote_control = False
+            else:
+                self._logger.write(self.LOG_KEY, f"Pump Control Updated: [{message}]", logger.MessageLevel.INFO)
+                if message == b'ON':
+                    self._pump_request = self.PUMP_REQUEST_ON
+                elif message == b'OFF':
+                    self._pump_request = self.PUMP_REQUEST_OFF
             
     def _on_publish_message(self, topic, message) -> None:
         '''Published a new message to the MQTT Broker'''
@@ -251,11 +325,18 @@ class PumpBoxService:
     
     def _ball_valve_state_change(self, valve_state, new_state, context) -> None:
         '''Callback for when the ball valve state changes'''
-        ball_valve_state_str = f"Ball Valve State Changed [{new_state}]: {context}"
+        ball_valve_state_str = new_state
+        if self._verbose_valve_state_message:
+            ball_valve_state_str = f"Ball Valve State Changed [{new_state}]: {context}"
         self._logger.write(self.LOG_KEY, ball_valve_state_str, logger.MessageLevel.INFO)
         valve_state_topic = self._config.active_config['publish']['valve_state']
         self._mqtt_client.publish(valve_state_topic, ball_valve_state_str)
     
+    def _ball_valve_position_change(self, valve_position_str) -> None:
+        self._logger.write(self.LOG_KEY, f"Ball Valve Position= {valve_position_str}", logger.MessageLevel.INFO)
+        valve_position_topic = self._config.active_config['publish']['valve_position']
+        self._mqtt_client.publish(valve_position_topic, valve_position_str)
+                    
     def _system_state_to_str(self, state) -> str:
         if state == self.PUMP_STATE_INIT:
             return "INIT"
@@ -275,6 +356,17 @@ class PumpBoxService:
             return "STOPPED"
         else:
             raise Exception("Unknown State")
+    
+    def _energize_motor_contactor(self, energize_contactor):
+        direction_pin = self._config.active_config['motor_contactor']['direction_pin'] 
+        enable_pin = self._config.active_config['motor_contactor']['enable_pin'] 
+        '''Set the motor contactor state'''
+        if energize_contactor:
+            self._mcp_portexpander.write_kitchensink_doutput(direction_pin, True)
+            self._mcp_portexpander.write_kitchensink_doutput(enable_pin, True)
+        else:
+            self._mcp_portexpander.write_kitchensink_doutput(direction_pin, False)
+            self._mcp_portexpander.write_kitchensink_doutput(enable_pin, False)
             
 '''Measure and print 8 channels'''
 if __name__ == '__main__':
