@@ -198,6 +198,7 @@ class PumpBoxService:
         
         # Ball Valve 
         self._ball_valve = ball_valve.BallValve(self._mcp_portexpander,
+                                                "Pump Valve",
                                                 self._config.active_config['ball_valve']['open_pin'],
                                                 self._config.active_config['ball_valve']['close_pin'],
                                                 self._config.active_config['ball_valve']['direction_pin'],

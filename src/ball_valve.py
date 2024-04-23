@@ -64,7 +64,8 @@ class BallValve:
     _verbose_status_msg = False
     
     '''Initialize Ball Valve Object - fast init'''
-    def __init__(self, 
+    def __init__(self,
+                 valve_name : str, 
                  mcp_io : mcp23017.MCP23017,
                  din_open_pin, 
                  din_close_pin,
@@ -81,6 +82,7 @@ class BallValve:
         self._close_pin = din_close_pin
         self._direction_pin = dout_direction_pin
         self._enable_pin = dout_enable_pin
+        self.valve_name = valve_name
 
         self._transition_timeout_secs = transition_timeout_secs
         self._state_change_callback = state_change_callback
@@ -237,7 +239,8 @@ class BallValve:
     '''Emit a state change event to the caller if the state change callback is set'''
     def _emit_state_change_event(self, new_state:int, err_message : str):
         if self._state_change_callback != None:
-            self._state_change_callback(self._state, 
+            self._state_change_callback(self,
+                                        self._state, 
                                         self._state_to_string(new_state), 
                                         err_message) 
             
@@ -263,7 +266,7 @@ class BallValve:
     
     def _emit_valve_position_change_callback(self, valve_state_str:str): 
         if self._valve_position_change_callback != None:
-            self._valve_position_change_callback(valve_state_str)
+            self._valve_position_change_callback(self, valve_state_str)
             
 
 def _state_change_callback(self, new_state:int, context:str):
@@ -291,7 +294,8 @@ if __name__ == '__main__':
     direction_pin   = pin_assignments[valve_channel][2] # Yellow
     enable_pin      = pin_assignments[valve_channel][3] # Blue
           
-    ball_valve = BallValve(mcp_device, 
+    ball_valve = BallValve(mcp_device,
+                           "Test Valve", 
                            open_pin, 
                            close_pin, 
                            direction_pin, 
