@@ -75,7 +75,7 @@ class PumpMonitor:
         # Motor Current (Amps)
         self.motor_current_amps = None
         motor_current_channel_index = self._config.active_config['motor_current']['adc_channel_index']
-        raw_motor_current_meas = self._adc.get_4to20ma_from_channel(motor_current_channel_index)
+        raw_motor_current_meas = self._adc.get_voltage_from_channel(motor_current_channel_index)
         motor_current_scale = self._config.active_config['motor_current']['scale']
         motor_current_offset = self._config.active_config['motor_current']['offset']
         self.motor_current_amps = motor_current_scale * raw_motor_current_meas + motor_current_offset
@@ -197,8 +197,8 @@ class PumpBoxService:
         self._mcp_portexpander = mcp23017.MCP23017()
         
         # Ball Valve 
-        self._ball_valve = ball_valve.BallValve(self._mcp_portexpander,
-                                                "Pump Valve",
+        self._ball_valve = ball_valve.BallValve("Pump Valve",
+                                                self._mcp_portexpander, 
                                                 self._config.active_config['ball_valve']['open_pin'],
                                                 self._config.active_config['ball_valve']['close_pin'],
                                                 self._config.active_config['ball_valve']['direction_pin'],
@@ -324,7 +324,7 @@ class PumpBoxService:
         '''Format the topic with the base topic'''
         return f"{self._config.active_config['base_topic']}/{topic}"  
     
-    def _ball_valve_state_change(self, valve_state, new_state, context) -> None:
+    def _ball_valve_state_change(self, valve_obj, valve_state, new_state, context) -> None:
         '''Callback for when the ball valve state changes'''
         ball_valve_state_str = new_state
         if self._verbose_valve_state_message:
@@ -333,7 +333,7 @@ class PumpBoxService:
         valve_state_topic = self._config.active_config['publish']['valve_state']
         self._mqtt_client.publish(valve_state_topic, ball_valve_state_str)
     
-    def _ball_valve_position_change(self, valve_position_str) -> None:
+    def _ball_valve_position_change(self, valve_obj, valve_position_str) -> None:
         self._logger.write(self.LOG_KEY, f"Ball Valve Position= {valve_position_str}", logger.MessageLevel.INFO)
         valve_position_topic = self._config.active_config['publish']['valve_position']
         self._mqtt_client.publish(valve_position_topic, valve_position_str)

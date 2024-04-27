@@ -151,12 +151,14 @@ class ConfigManager:
 
         # Motor Current
         self.active_config['motor_current']['adc_channel_index'] = 0
-        self.active_config['motor_current']['scale'] = 1.563
-        self.active_config['motor_current']['offset'] = -6.250
+        #self.active_config['motor_current']['scale'] = 1.563
+        #self.active_config['motor_current']['offset'] = -6.250
+        self.active_config['motor_current']['scale'] = 4.25
+        self.active_config['motor_current']['offset'] = 0
         self.active_config['motor_current']['max_motor_current_amps'] = 10.0
         
         # Water Pressure
-        self.active_config['water_pressure']['adc_channel_index'] = 0
+        self.active_config['water_pressure']['adc_channel_index'] = 1
         self.active_config['water_pressure']['scale'] = 1
         self.active_config['water_pressure']['offset'] = 0
                     
