@@ -14,10 +14,16 @@ class MessageLevel(Enum):
 class Logger:
 
     _mute_list = []
-    _mute_list.append("mqtt-subscriber")
-    
-    def __init__(self) -> None:
+    _mute_list.append("mqtt-subscriber")    
+    _log_to_disk = False
+    _log_directory = "log"
+
+    def __init__(self, log_to_disk = False) -> None:
         self._msg_count = 0
+        self._log_to_disk = log_to_disk
+        if self._log_to_disk:
+            if not os.path.exists(self._log_directory):
+                os.makedirs(self._log_directory)
         pass
 
     def write(self, key, msg, level = MessageLevel.INFO) -> None:
@@ -39,10 +45,26 @@ class Logger:
                                             key,
                                             level_str).ljust(50)
         #print(header + msg)
-        os.write(sys.stdout.fileno(), ("\n" + header + msg).encode('utf8'))
+        log_msg = ("\n" + header + msg).encode('utf8')
+        os.write(sys.stdout.fileno(), log_msg)
+        self._write_to_log_file(header + msg + "\n")
     
     '''
     Write a string to the console without a header or new line
     '''
     def write_single_line_no_header(self, msg) -> None:
         os.write(sys.stdout.fileno(), (msg).encode('utf8'))
+        
+    ''' ---- File Logger ---- '''
+    _last_log_file_date_str = None
+    _log_file_date_format = '%Y%m%d.log'    
+    def _write_to_log_file(self, log_msg):
+        # Short-circuit if logging to disk is disabled
+        if self._log_to_disk == False:
+            return
+        # Check if a new file should be created
+        file_date_string = datetime.now().strftime(self._log_file_date_format)           
+        log_file = open(self._log_directory + "/" + file_date_string, "a")
+        log_file.write(log_msg)
+        log_file.close()
+            

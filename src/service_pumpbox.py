@@ -381,7 +381,7 @@ if __name__ == '__main__':
     config_file = "default_pumpbox_config.json"
     
     # Initialize Main object
-    app_logger = logger.Logger()
+    app_logger = logger.Logger(log_to_disk=True)
     app_logger.write(log_key, "Initializing PumpBox Service...", logger.MessageLevel.INFO)
     
     # Load or create default config
