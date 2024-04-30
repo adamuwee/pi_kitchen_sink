@@ -43,14 +43,16 @@ class PumpMonitor:
     
     '''Private Variables'''
     _last_mqtt_publish = None
+    _last_print_time = None
     _pump_start_time = None
         
-    def __init__(self, app_logger, app_config, mqtt_client, mqtt_transmit_time_sec=1) -> None:
+    def __init__(self, app_logger, app_config, mqtt_client, mqtt_transmit_time_sec=1, print_measurements_time_secs=10) -> None:
         '''Monitors environmental conditions of the pump.'''
         self._logger = app_logger
         self._config = app_config
         self._mqtt_client = mqtt_client
         self._mqtt_transmit_time_sec = mqtt_transmit_time_sec
+        self._print_measurements_time_secs = print_measurements_time_secs
         self._adc = ads7828.ADS7828()
         '''Create Monitor Limits'''
         self._monitor_limits = list()
@@ -91,9 +93,11 @@ class PumpMonitor:
         if self._pump_start_time != None:
              self.pump_run_time_secs = (datetime.datetime.now() - self._pump_start_time).total_seconds()
         # Print it
-        self._logger.write(self.LOG_KEY, f"Motor Current: {self.motor_current_amps:.2f} A", logger.MessageLevel.INFO)
-        self._logger.write(self.LOG_KEY, f"Water Pressure: {self.water_pressure_psi:.0f} PSI", logger.MessageLevel.INFO)
-        self._logger.write(self.LOG_KEY, f"Pump Run Time: {self.pump_run_time_secs:.0f} secs", logger.MessageLevel.INFO)        
+        if self._last_print_time == None or (datetime.datetime.now() - self._last_print_time).total_seconds() > self._print_measurements_time_secs:
+            self._last_print_time = datetime.datetime.now()
+            self._logger.write(self.LOG_KEY, f"Motor Current: {self.motor_current_amps:.2f} A", logger.MessageLevel.INFO)
+            self._logger.write(self.LOG_KEY, f"Water Pressure: {self.water_pressure_psi:.0f} PSI", logger.MessageLevel.INFO)
+            self._logger.write(self.LOG_KEY, f"Pump Run Time: {self.pump_run_time_secs:.0f} secs", logger.MessageLevel.INFO)        
         # Ship it
         if self._last_mqtt_publish == None or (datetime.datetime.now() - self._last_mqtt_publish).total_seconds() > self._mqtt_transmit_time_sec:
             self._last_mqtt_publish = datetime.datetime.now()
