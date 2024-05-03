@@ -54,7 +54,10 @@ class MqttClient:
     
     def is_connected(self) -> bool:
         '''Return true/false if the MQTT client is connected'''
-        return self._mqtt_client.is_connected()
+        if self._mqtt_client is None:
+            return False
+        else:
+            return self._mqtt_client.is_connected()
 
     def subscribe(self, topic) -> None:
         '''Subscribe to a given topic'''
@@ -83,9 +86,11 @@ class MqttClient:
         broker_addr = self._app_config.active_config['mqtt_broker']['connection']['host_addr']
         broker_port = self._app_config.active_config['mqtt_broker']['connection']['host_port']
         connect_value = self._mqtt_client.connect(broker_addr, broker_port, 60)
-        loop_start_value = self._mqtt_client.loop_start()
+        
         self._mqtt_client.on_message = self._on_message_callback
         self._mqtt_client.on_connect = self._on_connect_callback
+        self._mqtt_client.on_publish = self._on_publish_callback
+        loop_start_value = self._mqtt_client.loop_start()
         self._logger.write(self._log_key, f"ADDR={broker_addr}, PORT={broker_port}, CONNECTED={connect_value}", logger.MessageLevel.INFO)
         return (connect_value, loop_start_value)
 
@@ -95,16 +100,12 @@ class MqttClient:
             self._mqtt_client.loop_stop()
             return self._mqtt_client.disconnect()
         return 0
-        
-    def _on_connect_callback(self, client, userdata, flags, rc) -> None:
-        '''Internal callback for a new connection to the MQTT broker'''
-        self._logger.write(self._log_key, f"Connected with result code {rc}", logger.MessageLevel.INFO)
 
     def _on_publish_callback(self, client, userdata, mid) -> None:  
         '''Internal callback for a new message published to the MQTT broker'''
-        self._logger.write(self._log_key, f"Published message ID: {mid}", logger.MessageLevel.INFO)
+        #self._logger.write(self._log_key, f"Published message ID: {mid}", logger.MessageLevel.INFO)
         if self._publish_message_callback is not None:
-            self._publish_message_callback(mid)
+            self._publish_message_callback(userdata, mid)
              
     def _on_message_callback(self, client, userdata, message) -> None:
         '''Internal callback for new messages received on the subscribed topic'''

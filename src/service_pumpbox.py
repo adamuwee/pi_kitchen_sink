@@ -100,10 +100,12 @@ class PumpMonitor:
             self._logger.write(self.LOG_KEY, f"Pump Run Time: {self.pump_run_time_secs:.0f} secs", logger.MessageLevel.INFO)        
         # Ship it
         if self._last_mqtt_publish == None or (datetime.datetime.now() - self._last_mqtt_publish).total_seconds() > self._mqtt_transmit_time_sec:
-            self._last_mqtt_publish = datetime.datetime.now()
+            self._last_mqtt_publish = datetime.datetime.now()                
+            # Publish Stats
             self._mqtt_client.publish(self._config.active_config['publish']['motor_current'], self.motor_current_amps)
             self._mqtt_client.publish(self._config.active_config['publish']['water_pressure'], self.water_pressure_psi)
             self._mqtt_client.publish(self._config.active_config['publish']['pump_run_time_secs'], self.pump_run_time_secs)
+            
   
     def test_limits(self) -> list:
         '''Returns of list of limit violations'''
@@ -186,16 +188,8 @@ class PumpBoxService:
         self._logger = app_logger
         self._config = app_config
         
-        
-        
         # Create and Start Mqtt Client
-        self._logger.write(self.LOG_KEY, "Initializing MQTT Client...", logger.MessageLevel.INFO)
-        self._mqtt_client = mqtt_client_pubsub.MqttClient(app_config, 
-                                                app_logger, 
-                                                self._on_new_message, 
-                                                self._on_publish_message)
-        self._mqtt_client.start()
-        self._mqtt_client.subscribe(self._config.active_config['subscribe']['pump_control'])
+        self._init_and_start_mqtt_client()
         
         # Create Port Expander
         self._mcp_portexpander = mcp23017.MCP23017()
@@ -213,15 +207,14 @@ class PumpBoxService:
         
         # Pump Monitor
         self._pump_monitor = PumpMonitor(app_logger, app_config, self._mqtt_client)
-        
-        
-                
+               
     ''' Run Main Loop '''
     def run(self) -> ServiceExitError:
         
         # Main loop
         while self._run_main_loop:
             self._last_loop_start = datetime.datetime.now()
+            self._pet_mqtt_client_watchdog()
             # Process the ball valve state machine
             self._ball_valve.process()
             # Update Monitor
@@ -319,10 +312,30 @@ class PumpBoxService:
                     self._pump_request = self.PUMP_REQUEST_ON
                 elif message == b'OFF':
                     self._pump_request = self.PUMP_REQUEST_OFF
-            
+    
+    def _init_and_start_mqtt_client(self):
+        self._logger.write(self.LOG_KEY, "Initializing MQTT Client...", logger.MessageLevel.INFO)
+        self._mqtt_client = mqtt_client_pubsub.MqttClient(app_config, 
+                                                app_logger, 
+                                                self._on_new_message, 
+                                                self._on_publish_message)
+        self._mqtt_client.start()
+        self._mqtt_client.subscribe(self._config.active_config['subscribe']['pump_control'])  
+        self._logger.write(self.LOG_KEY, "MQTT Client initialized.", logger.MessageLevel.INFO)
+    
+    _last_mqtt_client_pet = None
+    def _pet_mqtt_client_watchdog(self):
+        if self._last_mqtt_client_pet == None or (datetime.datetime.now() - self._last_mqtt_client_pet).total_seconds() > 10:
+            self._last_mqtt_client_pet = datetime.datetime.now()
+            # Watchdog for MQTT Client
+            if self._mqtt_client.is_connected() == False:
+                self._logger.write(self.LOG_KEY, "MQTT Client Not Connected - Attempting reconnect...", logger.MessageLevel.WARN)
+                self._mqtt_client.start()
+              
     def _on_publish_message(self, topic, message) -> None:
         '''Published a new message to the MQTT Broker'''
-        self._logger.write(self.LOG_KEY, f"Publishing message: {topic}->[{message}]", logger.MessageLevel.INFO)
+        if self._verbose_valve_state_message:
+            self._logger.write(self.LOG_KEY, f"Publishing message: {topic}->[{message}]", logger.MessageLevel.INFO)
 
     def _format_topic(self, topic) -> str:
         '''Format the topic with the base topic'''
