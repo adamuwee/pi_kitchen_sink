@@ -6,6 +6,7 @@ import pumpbox_config
 import mqtt_client_pubsub
 import mcp23017
 import ads7828
+import sht31
 import ball_valve
 
 class ServiceExitError:
@@ -19,8 +20,6 @@ class PumpMonitor:
     MEAS_TYPE_RUNTIME = "Motor Run-time"
             
     class PumpMonitorLimits:
-        
-
         
         def __init__(self, name, error_msg, measurement_name, evaluation_function, shutdown_on_error=True) -> None:
             self.name = name
@@ -54,6 +53,8 @@ class PumpMonitor:
         self._mqtt_transmit_time_sec = mqtt_transmit_time_sec
         self._print_measurements_time_secs = print_measurements_time_secs
         self._adc = ads7828.ADS7828()
+        self._env_sensor = sht31.SHT31()
+        
         '''Create Monitor Limits'''
         self._monitor_limits = list()
         max_motor_current_amps = self._config.active_config['motor_current']['max_motor_current_amps']
@@ -88,6 +89,8 @@ class PumpMonitor:
         water_pressure_scale = self._config.active_config['water_pressure']['scale']
         water_pressure_offset = self._config.active_config['water_pressure']['offset']
         self.water_pressure_psi = water_pressure_scale * raw_water_pressure_meas + water_pressure_offset
+        # Enclosure Temperature and Humidity
+        self.enclosure_temp_humidity = self._env_sensor.read_temp_humidity()
         # Run Time
         self.pump_run_time_secs = 0
         if self._pump_start_time != None:
@@ -97,7 +100,8 @@ class PumpMonitor:
             self._last_print_time = datetime.datetime.now()
             self._logger.write(self.LOG_KEY, f"Motor Current: {self.motor_current_amps:.2f} A", logger.MessageLevel.INFO)
             self._logger.write(self.LOG_KEY, f"Water Pressure: {self.water_pressure_psi:.0f} PSI", logger.MessageLevel.INFO)
-            self._logger.write(self.LOG_KEY, f"Pump Run Time: {self.pump_run_time_secs:.0f} secs", logger.MessageLevel.INFO)        
+            self._logger.write(self.LOG_KEY, f"Pump Run Time: {self.pump_run_time_secs:.0f} secs", logger.MessageLevel.INFO)    
+            self._logger.write(self.LOG_KEY, f"Enclosure: {self.enclosure_temp_humidity}", logger.MessageLevel.INFO)      
         # Ship it
         if self._last_mqtt_publish == None or (datetime.datetime.now() - self._last_mqtt_publish).total_seconds() > self._mqtt_transmit_time_sec:
             self._last_mqtt_publish = datetime.datetime.now()                
@@ -105,6 +109,8 @@ class PumpMonitor:
             self._mqtt_client.publish(self._config.active_config['publish']['motor_current'], self.motor_current_amps)
             self._mqtt_client.publish(self._config.active_config['publish']['water_pressure'], self.water_pressure_psi)
             self._mqtt_client.publish(self._config.active_config['publish']['pump_run_time_secs'], self.pump_run_time_secs)
+            self._mqtt_client.publish(self._config.active_config['publish']['enclosure_temperature'], self.enclosure_temp_humidity.temperature)
+            self._mqtt_client.publish(self._config.active_config['publish']['enclosure_humidity'], self.enclosure_temp_humidity.humidity)
             
   
     def test_limits(self) -> list:

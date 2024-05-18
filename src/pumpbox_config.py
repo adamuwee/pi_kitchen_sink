@@ -136,7 +136,9 @@ class ConfigManager:
         self.active_config['publish']['motor_current'] = 'motor_current'
         self.active_config['publish']['pump_run_time_secs'] = 'pump_run_time_secs'
         self.active_config['publish']['error_message'] = 'error_message'
-
+        self.active_config['publish']['enclosure_temperature'] = 'enclosure_temperature'
+        self.active_config['publish']['enclosure_humidity'] = 'enclosure_humidity'
+        
         # Ball Valve
         self.active_config['ball_valve']['open_pin'] = 0
         self.active_config['ball_valve']['close_pin'] = 1
