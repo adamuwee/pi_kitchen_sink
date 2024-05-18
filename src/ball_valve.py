@@ -193,7 +193,7 @@ class BallValve:
                 self._change_state(self.STATE_CLOSED, f"Valve Closed. Returning to IDLE state.")  
                 self._timed_out = False 
             elif self._timer.has_timed_out():
-                self._change_state(self.STATE_INIT, f"Valve Closiing Timeout. Returning to INIT state.")  
+                self._change_state(self.STATE_INIT, f"Valve Closing Timeout. Returning to INIT state.")  
                 self._timed_out = True 
             else:
                 self._change_state(self.STATE_CLOSING, f"Valve Closing - {self._timer.time_remaining_seconds():.1f} seconds remain")  
