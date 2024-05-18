@@ -128,7 +128,7 @@ class BallValve:
 
     def is_in_transition_state(self) -> bool:
         '''Return if the ball valve is transition from one state to another'''
-        return self.current_state in (BallValve.STATE_START_OPENING,
+        return self._state in (BallValve.STATE_START_OPENING,
                                       BallValve.STATE_OPENING,
                                       BallValve.STATE_START_CLOSING,
                                       BallValve.STATE_CLOSING)
@@ -140,6 +140,7 @@ class BallValve:
         if self._state == self.STATE_INIT:
             self._timer = None      
             self._change_state(self.STATE_IDLE, "Initialization complete.")
+            self._set_drive_state(self.TRANSITION_NONE)
             pass
         
         # STATE_IDLE            

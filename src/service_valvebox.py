@@ -100,12 +100,20 @@ class ValveBoxService:
                 # Update the ball valve
                 for ball_valve in self._ball_valves:
                     if (ball_valve.valve_name == command.name):
-                        if command.requested_state == ValveQueueCommand.OPEN:
-                            ball_valve.request_open()
-                        elif command.requested_state == ValveQueueCommand.CLOSE:
-                            ball_valve.request_close()
+                        if ball_valve.is_in_transition_state():
+                            '''Block if the ball valve is transitioning to another state'''
+                            valve_in_transition_err_string = f"Command Blocked. {ball_valve.valve_name} is in transition."
+                            self._logger.write(self.LOG_KEY, valve_in_transition_err_string, logger.MessageLevel.ERROR)
+                            valve_box_error_topic = self._config.active_config['publish']['system_error']
+                            self._mqtt_client.publish(valve_box_error_topic, valve_in_transition_err_string)
                         else:
-                            self._logger.write(self.LOG_KEY, f"Unknown valve command received: {command}", logger.MessageLevel.ERROR)    
+                            if command.requested_state == ValveQueueCommand.OPEN:
+                                ball_valve.request_open()
+                            elif command.requested_state == ValveQueueCommand.CLOSE:
+                                ball_valve.request_close()
+                            else:
+                                self._logger.write(self.LOG_KEY, f"Unknown valve command received: {command}", logger.MessageLevel.ERROR)    
+                
             # Sleep to prevent CPU thrashing    
             time.sleep(0.2)
             
