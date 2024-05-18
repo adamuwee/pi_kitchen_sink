@@ -125,6 +125,13 @@ class BallValve:
     
     def is_timedout(self) -> bool:
         return self._timed_out
+
+    def is_in_transition_state(self) -> bool:
+        '''Return if the ball valve is transition from one state to another'''
+        return self.current_state in (BallValve.STATE_START_OPENING,
+                                      BallValve.STATE_OPENING,
+                                      BallValve.STATE_START_CLOSING,
+                                      BallValve.STATE_CLOSING)
              
     '''Public API: This should be called in a loop to process the ball valve state and transition timeouts'''
     def process(self):
