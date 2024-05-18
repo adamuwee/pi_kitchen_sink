@@ -61,10 +61,9 @@ class MqttClient:
 
     def subscribe(self, topic) -> None:
         '''Subscribe to a given topic'''
-        
-        self._mqtt_client.subscribe(topic)
         full_topic = self._append_base(topic)
         self._local_topic_list.append(full_topic)
+        self._mqtt_client.subscribe(full_topic)
         self._logger.write(self._log_key, f"Subscribed to {full_topic}", logger.MessageLevel.INFO)
         
     def publish(self, topic, payload) -> mqtt.MQTTMessageInfo:
