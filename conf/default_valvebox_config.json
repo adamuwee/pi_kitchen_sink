@@ -1,1 +1,77 @@
-{"Name": "default", "mqtt_broker": {"connection": {"host_addr": "debian-openhab", "host_port": 1883}}, "base_topic": "/ValveBox", "publish": {"system_state": "system_state"}, "valve_1": {"subscribe": {"valve_control": "valve_1/remote_run_state"}, "publish": {"state": "valve_1/valve_state", "position": "valve_1/valve_position", "open_time_secs": "valve_1/pump_run_time_secs", "error_message": "valve_1/error_message"}, "open_pin": 0, "close_pin": 1, "direction_pin": 8, "enable_pin": 9, "transition_time_secs": 20}, "valve_2": {"subscribe": {"valve_control": "valve_2/remote_run_state"}, "publish": {"state": "valve_2/valve_state", "position": "valve_2/valve_position", "open_time_secs": "valve_2/pump_run_time_secs", "error_message": "valve_2/error_message"}, "open_pin": 2, "close_pin": 3, "direction_pin": 10, "enable_pin": 11, "transition_time_secs": 20}, "valve_3": {"subscribe": {"valve_control": "valve_3/remote_run_state"}, "publish": {"state": "valve_3/valve_state", "position": "valve_3/valve_position", "open_time_secs": "valve_3/pump_run_time_secs", "error_message": "valve_3/error_message"}, "open_pin": 4, "close_pin": 5, "direction_pin": 12, "enable_pin": 13, "transition_time_secs": 20}, "valve_4": {"subscribe": {"valve_control": "valve_4/remote_run_state"}, "publish": {"state": "valve_4/valve_state", "position": "valve_4/valve_position", "open_time_secs": "valve_4/pump_run_time_secs", "error_message": "valve_4/error_message"}, "open_pin": 6, "close_pin": 7, "direction_pin": 14, "enable_pin": 15, "transition_time_secs": 20}}
+{
+    "Name": "default",
+    "mqtt_broker": {
+        "connection": {
+            "host_addr": "debian-openhab",
+            "host_port": 1883
+        }
+    },
+    "base_topic": "/ValveBox",
+    "publish": {
+        "system_state": "system_state"
+    },
+    "valve_1": {
+        "subscribe": {
+            "valve_control": "valve_1/remote_run_state"
+        },
+        "publish": {
+            "state": "valve_1/valve_state",
+            "position": "valve_1/valve_position",
+            "open_time_secs": "valve_1/pump_run_time_secs",
+            "error_message": "valve_1/error_message"
+        },
+        "open_pin": 0,
+        "close_pin": 1,
+        "direction_pin": 8,
+        "enable_pin": 9,
+        "transition_time_secs": 20
+    },
+    "valve_2": {
+        "subscribe": {
+            "valve_control": "valve_2/remote_run_state"
+        },
+        "publish": {
+            "state": "valve_2/valve_state",
+            "position": "valve_2/valve_position",
+            "open_time_secs": "valve_2/pump_run_time_secs",
+            "error_message": "valve_2/error_message"
+        },
+        "open_pin": 2,
+        "close_pin": 3,
+        "direction_pin": 10,
+        "enable_pin": 11,
+        "transition_time_secs": 20
+    },
+    "valve_3": {
+        "subscribe": {
+            "valve_control": "valve_3/remote_run_state"
+        },
+        "publish": {
+            "state": "valve_3/valve_state",
+            "position": "valve_3/valve_position",
+            "open_time_secs": "valve_3/pump_run_time_secs",
+            "error_message": "valve_3/error_message"
+        },
+        "open_pin": 4,
+        "close_pin": 5,
+        "direction_pin": 12,
+        "enable_pin": 13,
+        "transition_time_secs": 20
+    },
+    "valve_4": {
+        "subscribe": {
+            "valve_control": "valve_4/remote_run_state"
+        },
+        "publish": {
+            "state": "valve_4/valve_state",
+            "position": "valve_4/valve_position",
+            "open_time_secs": "valve_4/pump_run_time_secs",
+            "error_message": "valve_4/error_message"
+        },
+        "open_pin": 6,
+        "close_pin": 7,
+        "direction_pin": 14,
+        "enable_pin": 15,
+        "transition_time_secs": 20
+    }
+}

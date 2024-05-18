@@ -146,6 +146,13 @@ class ConfigManager:
             self.active_config[valve_topic]['direction_pin'] = 8 + 2*index
             self.active_config[valve_topic]['enable_pin'] = 9 + 2*index
             self.active_config[valve_topic]['transition_time_secs'] = 20
+    
+    def get_valve_configs(self) -> dict:
+        valve_configs = dict()
+        for index in range(ConfigManager.NUMBER_OF_VALVES):
+            valve_topic = f'valve_{index + 1}'    
+            valve_configs[valve_topic] = self.active_config[valve_topic]   
+        return valve_configs 
                     
     '''
     Recursively convert all defaultdicts to dicts; useful for JSON serialization

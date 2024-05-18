@@ -1,5 +1,6 @@
 import time
 import datetime
+import queue
 
 import logger
 import valvebox_config
@@ -12,6 +13,23 @@ class ServiceExitError:
     def __init__(self, error = True, error_message = "") -> None:
         self.error = error
         self.error_message = error_message
+
+class ValveQueueCommand:
+    # Class Constants
+    UNKNOWN = 0
+    OPEN = 1
+    CLOSE = 2
+    
+    # Class Members
+    name = ""
+    requested_state = UNKNOWN
+    
+    def __init__(self, name, requested_state) -> None:
+        self.name = name
+        self.requested_state = requested_state
+        
+    def __str__(self):
+     return f"{self.name}: {self.requested_state}"
                         
 class ValveBoxService:
     
@@ -27,12 +45,14 @@ class ValveBoxService:
     _ignore_first_mqtt_remote_control = True
     _verbose_valve_state_message = True
     _ball_valves = list()
+    _command_queue = None
     
     def __init__(self, app_logger, app_config) -> None:
         '''Initialize the ValveBoxService object - fast init, _can_ fail'''
         # Logger and config
         self._logger = app_logger
         self._config = app_config
+        self._command_queue = queue.Queue()
         
         # Create Port Expander
         self._mcp_portexpander = mcp23017.MCP23017()
@@ -74,8 +94,19 @@ class ValveBoxService:
                 ball_valve.process()
             
             # Check for new requests on the subscribed channels
-
-            # Sleep to prevent CPU thrashing     
+            while self._command_queue.qsize() > 0:
+                command = self._command_queue.get()
+                self._logger.write(self.LOG_KEY, f"New valve command: {command}", logger.MessageLevel.INFO)
+                # Update the ball valve
+                for ball_valve in self._ball_valves:
+                    if (ball_valve.valve_name == command.name):
+                        if command.requested_state == ValveQueueCommand.OPEN:
+                            ball_valve.request_open()
+                        elif command.requested_state == ValveQueueCommand.CLOSE:
+                            ball_valve.request_close()
+                        else:
+                            self._logger.write(self.LOG_KEY, f"Unknown valve command received: {command}", logger.MessageLevel.ERROR)    
+            # Sleep to prevent CPU thrashing    
             time.sleep(0.1)
             
         
@@ -83,20 +114,21 @@ class ValveBoxService:
         '''Received a new message from the MQTT Broker'''
         self._logger.write(self.LOG_KEY, f"New message: {topic}->[{message}]", logger.MessageLevel.INFO)
         # Parse the message
-        if topic == self._format_topic(self._config.active_config['subscribe']['pump_control']):
-            if self._ignore_first_mqtt_remote_control:
-                self._ignore_first_mqtt_remote_control = False
-            else:
-                self._logger.write(self.LOG_KEY, f"Pump Control Updated: [{message}]", logger.MessageLevel.INFO)
-                if message == b'ON':
-                    self._pump_request = self.PUMP_REQUEST_ON
-                elif message == b'OFF':
-                    self._pump_request = self.PUMP_REQUEST_OFF
+        # First Scan - Valve Control (Hacked for now)
+        for (valve_key, valve_conf) in self._config.get_valve_configs().items():
+            valve_cmd_topic = self._config.active_config['base_topic'] + "/" + valve_conf['subscribe']['valve_control']
+            if topic == valve_cmd_topic:
+                if message == b'OPEN':
+                    self._command_queue.put(ValveQueueCommand(valve_key, ValveQueueCommand.OPEN))
+                elif message == b'CLOSE':
+                    self._command_queue.put(ValveQueueCommand(valve_key, ValveQueueCommand.CLOSE))               
+
             
     def _on_publish_message(self, topic, message) -> None:
         '''Published a new message to the MQTT Broker'''
-        self._logger.write(self.LOG_KEY, f"Publishing message: {topic}->[{message}]", logger.MessageLevel.INFO)
-
+        #self._logger.write(self.LOG_KEY, f"Publishing message: {topic}->[{message}]", logger.MessageLevel.INFO)
+        pass
+    
     def _format_topic(self, topic) -> str:
         '''Format the topic with the base topic'''
         return f"{self._config.active_config['base_topic']}/{topic}"  
@@ -106,14 +138,14 @@ class ValveBoxService:
         # TODO: Figure out the ball valve name 
         ball_valve_state_str = new_state
         if self._verbose_valve_state_message:
-            ball_valve_state_str = f"{valve_obj.valve_name}: [{new_state}]: {context}"
+            ball_valve_state_str = f"{valve_obj.valve_name} State: [{new_state}]: {context}"
         self._logger.write(self.LOG_KEY, ball_valve_state_str, logger.MessageLevel.INFO)
         valve_state_topic = self._config.active_config[valve_obj.valve_name]['publish']['state']
         self._mqtt_client.publish(valve_state_topic, ball_valve_state_str)
     
     def _ball_valve_position_change(self, valve_obj, valve_position_str) -> None:
-        self._logger.write(self.LOG_KEY, f"{valve_obj.valve_name}: {valve_position_str}", logger.MessageLevel.INFO)
-        valve_position_topic = self._config.active_config[valve_obj.valve_name]['position']
+        self._logger.write(self.LOG_KEY, f"{valve_obj.valve_name} Position: {valve_position_str}", logger.MessageLevel.INFO)
+        valve_position_topic = self._config.active_config[valve_obj.valve_name]['publish']['position']
         self._mqtt_client.publish(valve_position_topic, valve_position_str)
                                 
 '''Main Service App'''
