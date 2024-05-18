@@ -84,7 +84,7 @@ class PumpMonitor:
         # Water Pressure (PSI)    
         self.water_pressure_psi = None
         water_pressure_channel_index = self._config.active_config['water_pressure']['adc_channel_index']
-        raw_water_pressure_meas = self._adc.get_4to20ma_from_channel(water_pressure_channel_index)
+        raw_water_pressure_meas = self._adc.get_voltage_from_channel(water_pressure_channel_index)
         water_pressure_scale = self._config.active_config['water_pressure']['scale']
         water_pressure_offset = self._config.active_config['water_pressure']['offset']
         self.water_pressure_psi = water_pressure_scale * raw_water_pressure_meas + water_pressure_offset

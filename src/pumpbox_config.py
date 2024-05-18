@@ -159,9 +159,11 @@ class ConfigManager:
         
         # Water Pressure
         self.active_config['water_pressure']['adc_channel_index'] = 1
-        self.active_config['water_pressure']['scale'] = 1
-        self.active_config['water_pressure']['offset'] = 0
-                    
+        self.active_config['water_pressure']['scale'] = 25.143
+        self.active_config['water_pressure']['offset'] = -13.829
+        #self.active_config['water_pressure']['scale'] = 1
+        #self.active_config['water_pressure']['offset'] = 0
+                            
     '''
     Recursively convert all defaultdicts to dicts; useful for JSON serialization
     '''
