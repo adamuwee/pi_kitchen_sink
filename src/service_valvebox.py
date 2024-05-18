@@ -107,7 +107,7 @@ class ValveBoxService:
                         else:
                             self._logger.write(self.LOG_KEY, f"Unknown valve command received: {command}", logger.MessageLevel.ERROR)    
             # Sleep to prevent CPU thrashing    
-            time.sleep(0.1)
+            time.sleep(0.2)
             
         
     def _on_new_message(self, topic, message) -> None:
@@ -141,7 +141,7 @@ class ValveBoxService:
             ball_valve_state_str = f"{valve_obj.valve_name} State: [{new_state}]: {context}"
         self._logger.write(self.LOG_KEY, ball_valve_state_str, logger.MessageLevel.INFO)
         valve_state_topic = self._config.active_config[valve_obj.valve_name]['publish']['state']
-        self._mqtt_client.publish(valve_state_topic, ball_valve_state_str)
+        self._mqtt_client.publish(valve_state_topic, context)
     
     def _ball_valve_position_change(self, valve_obj, valve_position_str) -> None:
         self._logger.write(self.LOG_KEY, f"{valve_obj.valve_name} Position: {valve_position_str}", logger.MessageLevel.INFO)
