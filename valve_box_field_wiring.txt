@@ -1,0 +1,33 @@
+Wire colors at PI Kitchen Sink for 4-valve Box
+
+GND     BLACK
+GND     NC
+GND     NC
+GND     NC
+
+H1-A    YELLOW
+H1-B    BLUE
+H2-A    YELLOW-RED
+H2-B    BLUE-WHITE
+H3-A    WHITE 
+H3-B    ORANGE
+H4-A    WHITE-RED
+H4-B    ORANGE-WHITE
+
+DI-1    GREEN
+DI-2    RED
+DI-3    GREEN-WHITE
+DI-4    RED-WHITE
+DI-5    BROWN
+DI-6    PURPLE
+DI-7    BROWN-WHITE
+DI-8    PURPLE-WHITE
+
+3.3V    NC
+GP16    GRAY-RED
+GP26    NC
+COM     BLACK-WHITE
+
+
+FIELD CABLE
+GRAY    NC

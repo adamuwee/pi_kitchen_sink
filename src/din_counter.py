@@ -2,9 +2,7 @@ from RPi import GPIO
 import datetime
 import time
 
- 
-
-'''Counts rising edges on GPIO 5 and 6 of a Raspberry PI'''
+'''Counts rising edges on GP16 and GP26 of a Raspberry PI'''
 class DinCounter:
     
     class Counter:
@@ -33,7 +31,7 @@ class DinCounter:
         def reset(self):
             self._count = 0
     
-    def __init__(self):
+    def __init__(self,debounce_ms=250):
         
         # Counters
         self.count_A = 0
@@ -41,34 +39,34 @@ class DinCounter:
     
         # Config PIN Modes and callbacks
         GPIO.setmode(GPIO.BCM)
-        self._counter_A = DinCounter.Counter(16)
-        self._counter_B = DinCounter.Counter(26)
+        self._counter_A = DinCounter.Counter(16,debounce_ms)
+        self._counter_B = DinCounter.Counter(26,debounce_ms)
         GPIO.setup(self._counter_A.bcm_pin, GPIO.IN)
         GPIO.setup(self._counter_B.bcm_pin, GPIO.IN)
         GPIO.add_event_detect(self._counter_A.bcm_pin, GPIO.FALLING, callback=self.increment_count_A)
         GPIO.add_event_detect(self._counter_B.bcm_pin, GPIO.FALLING, callback=self.increment_count_B)
 
-    '''GPIO 5 Rising Edge Callback'''
+    '''Channel A Rising Edge Callback'''
     def increment_count_A(self, channel):
         self._counter_A.increment()
 
-    '''GPIO 6 Rising Edge Callback'''
+    '''Channel B Rising Edge Callback'''
     def increment_count_B(self, channel):
         self._counter_B.increment()
 
-    '''Get the GPIO5 edge count'''
+    '''Get the Channel A edge count'''
     def get_count_A(self):
         return self._counter_A.get_count()
 
-    '''Get the GPIO6 edge count'''
+    '''Get the Channel B edge count'''
     def get_count_B(self):
         return self._counter_B.get_count()
 
-    '''Reset the GPIO5 edge count'''
+    '''Reset the Channel A edge count'''
     def reset_count_A(self):
         self._counter_A.reset()
 
-    '''Reset the GPIO6 edge count'''
+    '''Reset the Channel B edge count'''
     def reset_count_B(self):
         self._counter_B.reset()
     
@@ -79,22 +77,23 @@ class DinCounter:
 '''Component Test'''
 if __name__ == '__main__':
     
-
     # Usage example
-    counter = DinCounter()
+    counter = DinCounter(debounce_ms=500)
 
     # Do something...
-    test_duration_seconds = 60
+    test_duration_seconds = 120
     start_time = datetime.datetime.now()
     index = 0
-    while (datetime.datetime.now() - start_time).total_seconds() < test_duration_seconds:
+    elapsed_time = datetime.datetime.now() - start_time
+    while elapsed_time.total_seconds() < test_duration_seconds:
         # Get the counts
         count_A = counter.get_count_A()
         count_B = counter.get_count_B()
         # Print
-        print(f"[{index}]\tCNT-A: {count_A}\tCNT-B: {count_B}")
+        print(f"[\t{elapsed_time.total_seconds():0.1f}s]\tCNT-A: {count_A}\tCNT-B: {count_B}")
         index += 1
-        time.sleep(1)
+        time.sleep(0.25)
+        elapsed_time = datetime.datetime.now() - start_time
 
     # Clean up GPIO
     counter.cleanup()

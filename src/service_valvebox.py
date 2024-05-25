@@ -8,6 +8,7 @@ import mqtt_client_pubsub
 import mcp23017
 
 import ball_valve
+import din_counter
 
 class ServiceExitError:
     def __init__(self, error = True, error_message = "") -> None:
@@ -81,6 +82,9 @@ class ValveBoxService:
                                                             self._config.active_config[valve_topic]['transition_time_secs'],
                                                             state_change_callback=self._ball_valve_state_change,
                                                             valve_position_change_callback=self._ball_valve_position_change))
+            
+        # Flow Counter
+        self.counter = din_counter.DinCounter()
                         
     ''' Run Main Loop '''
     def run(self) -> ServiceExitError:
