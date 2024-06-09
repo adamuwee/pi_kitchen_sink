@@ -13,7 +13,6 @@ class DinCounter:
         _debounce_ms = 0
         _last_edge_time = datetime.datetime.now()
         
-        
         def __init__(self, bcm_pin, debounce_ms=250):
             self.bcm_pin = bcm_pin
             self._count = 0

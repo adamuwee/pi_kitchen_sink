@@ -85,6 +85,7 @@ class ValveBoxService:
             
         # Flow Counter
         self.counter = din_counter.DinCounter()
+        self._last_counter_value = float("NaN")
                         
     ''' Run Main Loop '''
     def run(self) -> ServiceExitError:
@@ -93,6 +94,15 @@ class ValveBoxService:
         while self._run_main_loop:
             self._last_loop_start = datetime.datetime.now()
             
+            # Check if Counter has updated
+            new_counter_value = self.counter.get_count_A()
+            if (self._last_counter_value == float("NaN") or
+                self._last_counter_value != new_counter_value):
+                # Update last and publish to mqtt
+                self._last_counter_value = new_counter_value
+                self._mqtt_client.publish(self._config.active_config['publish']['flow_counter'], 
+                                          self._last_counter_value)
+        
             # Process the ball valve state machines
             for ball_valve in self._ball_valves:
                 ball_valve.process()

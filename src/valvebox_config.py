@@ -131,6 +131,7 @@ class ConfigManager:
         # Publish Topics - System
         self.active_config['publish']['system_state'] = 'system_state'
         self.active_config['publish']['system_error'] = 'system_error'
+        self.active_config['publish']['flow_counter'] = 'flow_counter'
         
         # Publish Topics - Per Valve
         for index in range(ConfigManager.NUMBER_OF_VALVES):
