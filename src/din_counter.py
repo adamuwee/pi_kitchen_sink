@@ -40,6 +40,9 @@ class DinCounter:
         self.count_B = 0
     
         # Config PIN Modes and callbacks
+        GPIO.setwarnings(False)
+        GPIO.cleanup()
+        
         GPIO.setmode(GPIO.BCM)
         self._counter_A = DinCounter.Counter(16,debounce_ms)
         self._counter_B = DinCounter.Counter(26,debounce_ms)
