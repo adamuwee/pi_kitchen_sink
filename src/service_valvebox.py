@@ -9,6 +9,7 @@ import mcp23017
 
 import ball_valve
 import din_counter
+import simple_data_store
 
 class ServiceExitError:
     def __init__(self, error = True, error_message = "") -> None:
@@ -55,6 +56,9 @@ class ValveBoxService:
         self._config = app_config
         self._command_queue = queue.Queue()
         
+        # Create a simple data store for the counter
+        self.data_store = simple_data_store.DiskDataStore("valve_box_data_store.json")
+        
         # Create Port Expander
         self._mcp_portexpander = mcp23017.MCP23017()
                 
@@ -85,7 +89,7 @@ class ValveBoxService:
             
         # Flow Counter
         self.counter = din_counter.DinCounter()
-        self._last_counter_value = float("NaN")
+        self._last_counter_value = None
                         
     ''' Run Main Loop '''
     def run(self) -> ServiceExitError:
@@ -94,14 +98,8 @@ class ValveBoxService:
         while self._run_main_loop:
             self._last_loop_start = datetime.datetime.now()
             
-            # Check if Counter has updated
-            new_counter_value = self.counter.get_count_A()
-            if (self._last_counter_value == float("NaN") or
-                self._last_counter_value != new_counter_value):
-                # Update last and publish to mqtt
-                self._last_counter_value = new_counter_value
-                self._mqtt_client.publish(self._config.active_config['publish']['flow_counter'], 
-                                          self._last_counter_value)
+            # Update Flow Counter and MQTT Topic
+            self._update_flow_counter()
         
             # Process the ball valve state machines
             for ball_valve in self._ball_valves:
@@ -131,7 +129,34 @@ class ValveBoxService:
             # Sleep to prevent CPU thrashing    
             time.sleep(0.2)
             
+    def _update_flow_counter(self) -> None:
+        '''Syncs flow counter output and what was written to disk last'''
+        FLOW_COUNTER_TAG = "FLOW_COUNTER"
+        flag_send_flow_counter_mqtt = False
         
+        if (self._last_counter_value == None):
+            '''First time checking counter. Runs onces at startup. Set last counter value from disk'''
+            (value, timestamp) = self.data_store.read(FLOW_COUNTER_TAG)
+            if (value == None):
+                '''File not initiatied - write 0 to disk'''
+                self._last_counter_value = 0
+                self.data_store.write(FLOW_COUNTER_TAG, self._last_counter_value) 
+            else:
+                self._last_counter_value = value  
+            self.counter.set_count_A(self._last_counter_value) 
+            flag_send_flow_counter_mqtt = True
+        
+        new_counter_value = self.counter.get_count_A()    
+        if (self._last_counter_value != new_counter_value):
+            # Update last and publish to mqtt
+            self._last_counter_value = new_counter_value
+            self.data_store.write(FLOW_COUNTER_TAG, self._last_counter_value) 
+            flag_send_flow_counter_mqtt = True
+            
+        if flag_send_flow_counter_mqtt:
+            self._mqtt_client.publish(self._config.active_config['publish']['flow_counter'], 
+                                        self._last_counter_value)  
+                
     def _on_new_message(self, topic, message) -> None:
         '''Received a new message from the MQTT Broker'''
         self._logger.write(self.LOG_KEY, f"New message: {topic}->[{message}]", logger.MessageLevel.INFO)

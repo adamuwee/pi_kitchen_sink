@@ -24,8 +24,11 @@ class DinCounter:
                 self._count += 1
                 self._last_edge_time = datetime.datetime.now()
             
-        def get_count(self):
+        def get_count(self) -> int:
             return self._count
+        
+        def set_count(self, value : int):
+            self._count = value
         
         def reset(self):
             self._count = 0
@@ -57,10 +60,17 @@ class DinCounter:
     def get_count_A(self):
         return self._counter_A.get_count()
 
+    '''Get the Channel A edge count'''
+    def set_count_A(self, value : int):
+        self._counter_A.set_count(value)
+    
     '''Get the Channel B edge count'''
     def get_count_B(self):
         return self._counter_B.get_count()
-
+    
+    def set_count_B(self, value : int):
+        self._counter_B.set_count(value)
+        
     '''Reset the Channel A edge count'''
     def reset_count_A(self):
         self._counter_A.reset()
