@@ -11,6 +11,10 @@ import ball_valve
 import din_counter
 import simple_data_store
 
+import signal
+import sys
+from RPi import GPIO
+
 class ServiceExitError:
     def __init__(self, error = True, error_message = "") -> None:
         self.error = error
@@ -194,13 +198,22 @@ class ValveBoxService:
         self._logger.write(self.LOG_KEY, f"{valve_obj.valve_name} Position: {valve_position_str}", logger.MessageLevel.INFO)
         valve_position_topic = self._config.active_config[valve_obj.valve_name]['publish']['position']
         self._mqtt_client.publish(valve_position_topic, valve_position_str)
+
+
                                 
 '''Main Service App'''
+
+def signal_handler(sig, frame):
+    GPIO.cleanup()
+    sys.exit(0)
+
 if __name__ == '__main__':
     
     # Main variables
     log_key = "main"
     config_file = "default_valvebox_config.json"
+    
+    signal.signal(signal.SIGINT, signal_handler)
     
     # Initialize Main object
     app_logger = logger.Logger()
